@@ -88,16 +88,16 @@ class TableABC[T](ABC):
     async def insert(self, record: TableRecord[T]) -> None: ...
 
     @abstractmethod
-    async def update(self, source: TableRecord[T], predicate: TableChoicePredicate[T] | None = None) -> None: ...
-
-    @abstractmethod
-    async def update_first(self, source: TableRecord[T], predicate: TableChoicePredicate[T] | None = None) -> None: ...
-
-    @abstractmethod
     async def pop(self, predicate: TableChoicePredicate[T] | None = None) -> Tuple[TableRecord[T], ...]: ...
 
     @abstractmethod
     async def pop_first(self, predicate: TableChoicePredicate[T] | None = None) -> TableRecord[T] | None: ...
+
+    @abstractmethod
+    async def update(self, source: TableRecord[T], predicate: TableChoicePredicate[T] | None = None) -> None: ...
+
+    @abstractmethod
+    async def update_first(self, source: TableRecord[T], predicate: TableChoicePredicate[T] | None = None) -> None: ...
 
     @abstractmethod
     async def create(self) -> None: ...
@@ -170,4 +170,16 @@ class Table[T](TableABC[T]):
     async def update(self, source: TableRecord[T], predicate: TableChoicePredicate[T] | None = None) -> None:
         if not (selected := await self.select(predicate)):
             return
-        
+        for record in selected:
+            dict.update(record, source)
+        sql = 'UPDATE %s SET %s WHERE %s' % (
+            self.name,
+            ', '.join(f'{k} = ?' for k in source),
+            ', '.join(f'{k} = ?' for k in self._default)
+        )
+        factory = self.executors.get('update', single_executor)
+        for record in selected:
+            await factory(self.database).execute(sql, (
+                *source.values(),
+                *(record[k] for k in self._default)
+            ))
