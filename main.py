@@ -1,6 +1,5 @@
 from sqlite3 import connect, Row
 from re import search, IGNORECASE
-from dbtypes import TableColumn, Table
 from dataparser import JSON, INTEGER, DATE, date
 
 INNER_TABLES = 'sqlite_master', 'sqlite_sequence', 'sqlite_stat1', 'sqlite_stat2', 'sqlite_stat3', 'sqlite_stat4'
@@ -11,11 +10,6 @@ def extract_columns_from_create_table(sql):
         return tuple(col.strip() for col in match.group(1).split(','))
     return None
 
-
-a = list('abcdef')
-from timeit import timeit
-timeit('a[:]', globals=globals())
-print(timeit('a.copy()', globals=globals()), timeit('tuple(a)', globals=globals()))
 # with connect('database.db') as conn:
 #     conn.execute('UPDATE users SET name = ? WHERE id = ?', ('tilibom', 1))
     

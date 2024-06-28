@@ -1,14 +1,50 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Optional, Any, Tuple, List, Protocol, Dict
+from typing import Optional, Any, Tuple, List, Protocol, Dict, Self
+from collections import namedtuple
 from dataparser import DataParser, DefaultDataType
 from executor import Executor, _ExecutorFactory, PathLike, deferred_executor
+
+
+class TableRecordNew[T](Protocol):
+    nonrepeating: Tuple[str]
+
+    def __new__(cls, *args: T) -> Self:
+        ...
+
+    def __getattribute__(self, name: str) -> T | Any:
+        ...
+
+    def __getitem__(self, key: str | int) -> T:
+        ...
+
+    def __hash__(self) -> int:
+        ...
+
+    def __eq__(self) -> bool:
+        ...
 
 
 class TableChoicePredicate[T](Protocol):
     def __call__(self, record: 'TableRecord[T]') -> bool:
         ...
 
+
+def table_record[T](*columns: Tuple[TableColumn[T], T]) -> TableRecordNew[T]:
+    cols, vals = zip(*columns)
+    names, nonrepeating, defaults = ['nonrepeating'], [], [()]
+    for col in cols:
+        names.append(col.name)
+        defaults.append(col.default)
+        if col.unique or col.primary:
+            nonrepeating.append(col.name)
+    
+    class _Record(namedtuple('_', names, defaults=defaults)):
+        def __hash__(self) -> int:
+            return hash(tuple(getattr(self, key) for key in self.nonrepeating))
+
+        def __eq__(self) -> bool:
+            return 
 
 @dataclass(slots=True, frozen=True, match_args=False)
 class TableColumn[T]:
@@ -38,7 +74,7 @@ class TableColumn[T]:
 class TableRecord[T](Dict[str, T]):
     __slots__ = ()
     
-    def astuple(self) -> Tuple[T]:
+    def astuple(self) -> Tuple[T, ...]:
         return tuple(self.values())
 
     def __hash__(self) -> int:
@@ -243,4 +279,4 @@ class MemoryTable[T](TableABC[T]):
         self._records.extend(records)
     
     async def insert_one(self, record: TableRecord[T]) -> None:
-        return await super().insert_one(record)
+        self._records.append(record)
