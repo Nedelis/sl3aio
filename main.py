@@ -12,8 +12,12 @@ def extract_columns_from_create_table(sql):
     return None
 
 
-with connect('database.db') as conn:
-    conn.execute('UPDATE users SET name = ? WHERE id = ?', ('tilibom', 1))
+a = list('abcdef')
+from timeit import timeit
+timeit('a[:]', globals=globals())
+print(timeit('a.copy()', globals=globals()), timeit('tuple(a)', globals=globals()))
+# with connect('database.db') as conn:
+#     conn.execute('UPDATE users SET name = ? WHERE id = ?', ('tilibom', 1))
     
     # tables = [
     #     Table(name, tuple(map(TableColumn, extract_columns_from_create_table(sql))))
