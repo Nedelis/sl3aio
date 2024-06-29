@@ -1,5 +1,6 @@
 from sqlite3 import connect, Row
 from re import search, IGNORECASE
+from dbtypes import table_record, TableColumn
 from dataparser import JSON, INTEGER, DATE, date
 
 INNER_TABLES = 'sqlite_master', 'sqlite_sequence', 'sqlite_stat1', 'sqlite_stat2', 'sqlite_stat3', 'sqlite_stat4'
@@ -9,6 +10,11 @@ def extract_columns_from_create_table(sql):
     if (match := search(r'CREATE TABLE\s+\w+\s*\((.*)\)', sql, IGNORECASE)):
         return tuple(col.strip() for col in match.group(1).split(','))
     return None
+
+
+rec_fac = table_record(TableColumn('id INTEGER', 0), TableColumn('name TEXT', 'UNKNOWN'), table_name='users')
+print({rec_fac(name='John'), rec_fac(name='John')})
+
 
 # with connect('database.db') as conn:
 #     conn.execute('UPDATE users SET name = ? WHERE id = ?', ('tilibom', 1))

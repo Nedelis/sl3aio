@@ -1,15 +1,15 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Optional, Any, Tuple, List, Protocol, Dict, Self
+from typing import Optional, Any, Tuple, List, Protocol, Dict, Self, Type
 from collections import namedtuple
 from dataparser import DataParser, DefaultDataType
 from executor import Executor, _ExecutorFactory, PathLike, deferred_executor
 
 
 class TableRecordNew[T](Protocol):
-    nonrepeating: Tuple[str]
+    nonrepeating: Tuple[str, ...]
 
-    def __new__(cls, *args: T) -> Self:
+    def __new__(cls, *args: T, **kwargs: T) -> Self:
         ...
 
     def __getattribute__(self, name: str) -> T | Any:
@@ -29,22 +29,6 @@ class TableChoicePredicate[T](Protocol):
     def __call__(self, record: 'TableRecord[T]') -> bool:
         ...
 
-
-def table_record[T](*columns: Tuple[TableColumn[T], T]) -> TableRecordNew[T]:
-    cols, vals = zip(*columns)
-    names, nonrepeating, defaults = ['nonrepeating'], [], [()]
-    for col in cols:
-        names.append(col.name)
-        defaults.append(col.default)
-        if col.unique or col.primary:
-            nonrepeating.append(col.name)
-    
-    class _Record(namedtuple('_', names, defaults=defaults)):
-        def __hash__(self) -> int:
-            return hash(tuple(getattr(self, key) for key in self.nonrepeating))
-
-        def __eq__(self) -> bool:
-            return 
 
 @dataclass(slots=True, frozen=True, match_args=False)
 class TableColumn[T]:
@@ -280,3 +264,22 @@ class MemoryTable[T](TableABC[T]):
     
     async def insert_one(self, record: TableRecord[T]) -> None:
         self._records.append(record)
+
+
+def table_record[T](*columns: TableColumn[T], table_name: str = '') -> Type[TableRecordNew[T]]:
+    names, nonrepeating, defaults = [], [], []
+    for col in columns:
+        names.append(col.name)
+        defaults.append(col.default)
+        if col.unique or col.primary:
+            nonrepeating.append(col.name)
+    names.append('nonrepeating')
+    defaults.append(tuple(nonrepeating))
+    return type(
+        f'{table_name}_Record',
+        (namedtuple(f'{table_name}_RecordBase', names, defaults=defaults),),
+        {
+            '__hash__': lambda self: hash(tuple(getattr(self, key) for key in self.nonrepeating)),
+            '__eq__': lambda self, other: all(getattr(self, key) == getattr(other, key) for key in self.nonrepeating) if self.nonrepeating and other.nonrepeating else False
+        }
+    )
