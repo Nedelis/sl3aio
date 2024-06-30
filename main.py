@@ -1,7 +1,8 @@
 from sqlite3 import connect, Row
 from re import search, IGNORECASE
-from dbtypes import table_record, TableColumn
-from dataparser import JSON, INTEGER, DATE, date
+from table import TableColumn, MemoryTable, MemoizedTable, Executor
+from os.path import abspath
+from asyncio import run
 
 INNER_TABLES = 'sqlite_master', 'sqlite_sequence', 'sqlite_stat1', 'sqlite_stat2', 'sqlite_stat3', 'sqlite_stat4'
 
@@ -12,8 +13,26 @@ def extract_columns_from_create_table(sql):
     return None
 
 
-rec_fac = table_record(TableColumn('id INTEGER', 0), TableColumn('name TEXT', 'UNKNOWN'), table_name='users')
-print({rec_fac(name='John'), rec_fac(name='John')})
+async def main() -> None:
+    database = abspath('./database.db')
+    table = MemoizedTable(
+        'users',
+        (
+            TableColumn('id INTEGER PRIMARY KEY UNIQUE NOT NULL'),
+            TableColumn('name TEXT NOT NULL DEFAULT unknown', 'unknown')
+        ),
+        database
+    )
+    await table.insert(id=20, name='John')
+    await table.insert(id=3, name='Sussybaka')
+    await table.insert(id=3, name='Abama')
+    await table.insert(id=2, name='Niger')
+    await table.update_one(lambda record: record.id == 2, name='Hushan')
+    print(await table.select_one(lambda record: record.id == 2))
+    await Executor.instances[database].run()
+
+
+run(main())
 
 
 # with connect('database.db') as conn:

@@ -58,9 +58,6 @@ class Executor:
         except SL3Error:
             exception(f'[{self}] Error while executing SQL query "{sql}"!')
         return None
-    
-    async def execute(self, sql: str, parameters: Parameters = (), **conn_kwargs) -> Cursor | None:
-        return await self.execute_func(self, sql, parameters, **conn_kwargs)
 
     async def run(self) -> None:
         self.running = True
@@ -69,6 +66,9 @@ class Executor:
                 await sleep(1)
                 continue
             await self.run_iteration(self)
+    
+    async def __call__(self, sql: str, parameters: Parameters = (), **conn_kwargs) -> Cursor | None:
+        return await self.execute_func(self, sql, parameters, **conn_kwargs)
 
 
 def executor_factory(func: _ExecutorFactory) -> _ExecutorFactory:
@@ -94,7 +94,7 @@ def single_executor(database: PathLike) -> Executor:
     @executor.set_execute
     async def _(exc: Executor, sql: str, parameters: Parameters = (), **conn_kwargs) -> None:
         await exc.queue.put((sql, parameters, conn_kwargs))
-        result = exc.execute_safely(sql, *parameters, **conn_kwargs)
+        result = exc.execute_safely(sql, parameters, **conn_kwargs)
         await exc.queue.get()
         return result
     return executor
@@ -110,7 +110,7 @@ def parallel_executor(database: PathLike) -> Executor:
     @executor.set_run_iteration
     async def _(exc: Executor) -> None:
         sql, parameters, conn_kwargs = await exc.queue.get()
-        await exc.results.put(exc.execute_safely(sql, *parameters, **conn_kwargs))
+        await exc.results.put(exc.execute_safely(sql, parameters, **conn_kwargs))
     return executor
 
 
@@ -123,5 +123,5 @@ def deferred_executor(database: PathLike) -> Executor:
     @executor.set_run_iteration
     async def _(exc: Executor) -> None:
         sql, parameters, conn_kwargs = await exc.queue.get()
-        exc.execute_safely(sql, *parameters, **conn_kwargs)
+        exc.execute_safely(sql, parameters, **conn_kwargs)
     return executor
