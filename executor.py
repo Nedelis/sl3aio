@@ -4,7 +4,7 @@ from functools import wraps
 from typing import Protocol, ClassVar, Dict, Tuple, Any, Self, Optional, final, Iterable, Mapping, Sequence
 from os import PathLike
 from os.path import abspath
-from sqlite3 import Cursor, connect, Error as SL3Error
+from sqlite3 import Cursor, connect, Error as SL3Error, PARSE_DECLTYPES
 from asyncio import Queue, sleep
 from dataparser import DefaultDataType
 
@@ -29,7 +29,7 @@ class _RunIterationFunction(Protocol):
 @final
 @dataclass(slots=True, match_args=False)
 class Executor:
-    instances: ClassVar[Dict[PathLike, Self]] = {}
+    _instances: ClassVar[Dict[PathLike, Self]] = {}
     database: PathLike
     queue: Queue[Tuple[str, Parameters, Dict[str, Any]]]
     results: Optional[Queue[Cursor | None]] = None
@@ -53,7 +53,7 @@ class Executor:
 
     def execute_safely(self, sql: str, parameters: Parameters = (), **conn_kwargs) -> Cursor | None:
         try:
-            with connect(self.database, **conn_kwargs) as conn:
+            with connect(self.database, detect_types=PARSE_DECLTYPES, **conn_kwargs) as conn:
                 return conn.execute(sql, parameters)
         except SL3Error:
             exception(f'[{self}] Error while executing SQL query "{sql}"!')
@@ -75,11 +75,11 @@ def executor_factory(func: _ExecutorFactory) -> _ExecutorFactory:
     @wraps(func)
     def wrapper(database: PathLike) -> Executor:
         database, type_ = abspath(database), func.__name__
-        if database not in Executor.instances:
+        if database not in Executor._instances:
             executor = func(database)
             executor.type_ = type_
-            Executor.instances[database] = executor
-        elif (executor := Executor.instances[database]).type_ != type_:
+            Executor._instances[database] = executor
+        elif (executor := Executor._instances[database]).type_ != type_:
             executor.type_ = type_
             new_executor = func(database)
             for field in executor.__slots__:

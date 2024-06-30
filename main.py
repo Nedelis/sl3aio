@@ -1,35 +1,28 @@
-from sqlite3 import connect, Row
+from dataparser import init_inbuilt_parsers
 from re import search, IGNORECASE
 from table import TableColumn, MemoryTable, MemoizedTable, Executor
 from os.path import abspath
 from asyncio import run
 
-INNER_TABLES = 'sqlite_master', 'sqlite_sequence', 'sqlite_stat1', 'sqlite_stat2', 'sqlite_stat3', 'sqlite_stat4'
-
-
-def extract_columns_from_create_table(sql):
-    if (match := search(r'CREATE TABLE\s+\w+\s*\((.*)\)', sql, IGNORECASE)):
-        return tuple(col.strip() for col in match.group(1).split(','))
-    return None
-
 
 async def main() -> None:
+    init_inbuilt_parsers()
     database = abspath('./database.db')
     table = MemoizedTable(
         'users',
         (
             TableColumn('id INTEGER PRIMARY KEY UNIQUE NOT NULL'),
-            TableColumn('name TEXT NOT NULL DEFAULT unknown', 'unknown')
+            TableColumn('name TEXT NOT NULL DEFAULT unknown', 'unknown'),
+            TableColumn('jsondata JSON', {})
         ),
         database
     )
     await table.insert(id=20, name='John')
     await table.insert(id=3, name='Sussybaka')
-    await table.insert(id=3, name='Abama')
+    await table.insert(id=3, name='Abama', jsondata={"keyboard": ["language", "items", "profile"]})
     await table.insert(id=2, name='Niger')
-    await table.update_one(lambda record: record.id == 2, name='Hushan')
-    print(await table.select_one(lambda record: record.id == 2))
-    await Executor.instances[database].run()
+    print(table._records)
+    await Executor._instances[database].run()
 
 
 run(main())

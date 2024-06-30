@@ -1,8 +1,7 @@
-from abc import ABC, ABCMeta, abstractmethod
+from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Optional, Any, Tuple, ClassVar, Protocol, Dict, Self, Type, Set, Iterator
 from collections import namedtuple
-from dataparser import DataParser, DefaultDataType
 from executor import Executor, _ExecutorFactory, PathLike, deferred_executor
 
 
@@ -41,12 +40,12 @@ class TableColumn[T]:
     sql: str
     default: Optional[T] = None
     name: str = field(init=False)
-    parser: DataParser[T, DefaultDataType] = field(init=False, repr=False)
+    datatype: str = field(init=False)
 
     def __post_init__(self) -> None:
         attrs = self.sql.split(maxsplit=2)
         object.__setattr__(self, 'name', attrs[0])
-        object.__setattr__(self, 'parser', DataParser.get_for(attrs[1]))
+        object.__setattr__(self, 'datatype', attrs[1])
 
     @property
     def primary(self) -> bool:
@@ -189,8 +188,8 @@ class MemoizedTable[T](TableABC[T]):
 
     async def insert(self, ignore_on_repeat: bool = False, **values: T) -> None:
         record = self._record_factory(**values)
-        if record in self._records and ignore_on_repeat:
-            return
+        if record in self._records and not ignore_on_repeat:
+            self._records.discard(record)
         self._records.add(record)
         await self._executor('insert')(
             'INSERT OR REPLACE INTO %s (%s) VALUES (%s)' % (
