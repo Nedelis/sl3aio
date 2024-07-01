@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "sl3aio"
 version = "1.0.0"
-description = "Project that makes working with SL3 simpler"
+description = "SQLite3 but with safe async and bunch of useful tools!"
 readme = "README.md"
 requires-python = ">=3.12"
 license = {file = "LICENSE"}
