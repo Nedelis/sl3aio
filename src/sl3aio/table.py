@@ -5,7 +5,7 @@ from os.path import abspath
 from dataclasses import dataclass, field
 from typing import Optional, Any, Tuple, ClassVar, Protocol, Dict, Self, Type, Set, Iterator
 from collections import namedtuple
-from executor import Executor, _ExecutorFactory, deferred_executor, single_executor
+from .executor import Executor, _ExecutorFactory, deferred_executor, single_executor
 
 
 class TableRecord[T](Protocol):

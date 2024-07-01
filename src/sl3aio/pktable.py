@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from operator import attrgetter
 from typing import Tuple, Self, Type, Callable, Any
-from table import Table, TableRecord, TableSelectPredicate
+from .table import Table, TableRecord, TableSelectPredicate
 
 
 @dataclass(slots=True, frozen=True)

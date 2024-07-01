@@ -6,7 +6,7 @@ from os import PathLike
 from os.path import abspath
 from sqlite3 import Cursor, connect, Error as SL3Error, PARSE_DECLTYPES
 from asyncio import Queue, sleep
-from dataparser import DefaultDataType
+from .dataparser import DefaultDataType
 
 type Parameters = Sequence[DefaultDataType] | Mapping[str, DefaultDataType]
 
