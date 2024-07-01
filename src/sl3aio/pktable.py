@@ -11,7 +11,7 @@ class PrimaryKeyTable[KT, VT]:
     primary_key_type: Type[KT] = Any
 
     def __predicate(self, key: KT) -> TableSelectPredicate:
-        return lambda record: getattr(record) == key
+        return lambda record: getattr(record, self.primary_key) == key
     
     async def contains(self, key: KT) -> bool:
         return await self.table.contains(self.table._record_factory(**{self.primary_key: key}))
