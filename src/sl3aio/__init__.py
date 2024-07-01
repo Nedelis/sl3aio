@@ -1,7 +1,4 @@
-import table
-import pktable
-import dataparser
-import executor
+from . import table, pktable, dataparser, executor
 
 TableRecord = table.TableRecord
 TableSelectPredicate = table.TableSelectPredicate
