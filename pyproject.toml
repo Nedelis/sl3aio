@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sl3aio"
+version = "1.0.0"
+description = "Project that makes working with SL3 simpler"
+readme = "README.md"
+requires-python = ">=3.12"
+license = {file = "LICENSE"}
+keywords = ["database", "development", "sqlite", "sl3"]
+authors = [
+  {name = "Nedelis", email = "dimoshunya@gmail.com" }
+]
+maintainers = [
+  {name = "Nedelis", email = "dimoshunya@gmail.com" }
+]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "Topic :: Database",
+  "License :: OSI Approved :: BSD License",
+  "Programming Language :: Python :: 3.12"
+]
+
+[project.urls]
+"Homepage" = "https://github.com/Nedelis/sl3aio"
+"Bug Reports" = "https://github.com/Nedelis/sl3aio/issues"
+"Source" = "https://github.com/Nedelis/sl3aio/master/src"

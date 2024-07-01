@@ -1,7 +1,7 @@
 from logging import exception
 from dataclasses import dataclass, field
 from functools import wraps
-from typing import Protocol, ClassVar, Dict, Tuple, Any, Self, Optional, final, Iterable, Mapping, Sequence
+from typing import Protocol, ClassVar, Dict, Tuple, Any, Self, Optional, final, Mapping, Sequence
 from os import PathLike
 from os.path import abspath
 from sqlite3 import Cursor, connect, Error as SL3Error, PARSE_DECLTYPES
