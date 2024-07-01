@@ -198,7 +198,7 @@ class SQLTable[T](Table[T], ABC):
         return self._executor_factory(self.database)
     
     async def run_executor(self) -> None:
-        await Executor._instances[self.database]
+        return await Executor._instances[self.database].run()
 
 
 @dataclass(slots=True, frozen=True)
