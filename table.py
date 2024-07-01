@@ -1,8 +1,11 @@
 from abc import ABC, abstractmethod
+from re import IGNORECASE, search
+from os import PathLike
+from os.path import abspath
 from dataclasses import dataclass, field
 from typing import Optional, Any, Tuple, ClassVar, Protocol, Dict, Self, Type, Set, Iterator
 from collections import namedtuple
-from executor import Executor, _ExecutorFactory, PathLike, deferred_executor
+from executor import Executor, _ExecutorFactory, deferred_executor, single_executor
 
 
 class TableRecord[T](Protocol):
@@ -30,7 +33,7 @@ class TableRecord[T](Protocol):
     def __len__(self) -> int: ...
 
 
-class TableChoicePredicate[T](Protocol):
+class TableSelectPredicate[T](Protocol):
     def __call__(self, record: 'TableRecord[T]') -> bool:
         ...
 
@@ -61,7 +64,7 @@ class TableColumn[T]:
 
 
 @dataclass(slots=True, frozen=True)
-class TableABC[T](ABC):
+class Table[T](ABC):
     name: str
     columns: Tuple[TableColumn[T], ...]
     _record_factory: Type[TableRecord[T]] = field(init=False, repr=False, hash=False, compare=False)
@@ -75,34 +78,37 @@ class TableABC[T](ABC):
         )
 
     @abstractmethod
-    async def select(self, predicate: TableChoicePredicate[T] | None = None) -> Tuple[TableRecord[T], ...]: ...
+    async def contains(self, record: TableRecord[T]) -> bool: ...
 
     @abstractmethod
-    async def select_one(self, predicate: TableChoicePredicate[T] | None = None) -> TableRecord[T] | None: ...
+    async def select(self, predicate: TableSelectPredicate[T] | None = None) -> Tuple[TableRecord[T], ...]: ...
+
+    @abstractmethod
+    async def select_one(self, predicate: TableSelectPredicate[T] | None = None) -> TableRecord[T] | None: ...
 
     @abstractmethod
     async def insert(self, ignore_on_repeat: bool = False, **values: T) -> None: ...
 
     @abstractmethod
-    async def remove(self, predicate: TableChoicePredicate[T] | None = None) -> None: ...
+    async def delete(self, predicate: TableSelectPredicate[T] | None = None) -> None: ...
 
     @abstractmethod
-    async def remove_one(self, predicate: TableChoicePredicate[T] | None = None) -> None: ...
+    async def delete_one(self, predicate: TableSelectPredicate[T] | None = None) -> None: ...
 
     @abstractmethod
-    async def update(self, predicate: TableChoicePredicate[T] | None = None, **to_update: T) -> None: ...
+    async def update(self, predicate: TableSelectPredicate[T] | None = None, **to_update: T) -> None: ...
 
     @abstractmethod
-    async def update_one(self, predicate: TableChoicePredicate[T] | None = None, **to_update: T) -> None: ...
+    async def update_one(self, predicate: TableSelectPredicate[T] | None = None, **to_update: T) -> None: ...
 
-    async def pop(self, predicate: TableChoicePredicate[T] | None = None) -> Tuple[TableRecord[T], ...]:
+    async def pop(self, predicate: TableSelectPredicate[T] | None = None) -> Tuple[TableRecord[T], ...]:
         selected = await self.select(predicate)
-        await self.remove(predicate)
+        await self.delete(predicate)
         return selected
     
-    async def pop_one(self, predicate: TableChoicePredicate[T] | None = None) -> TableRecord[T] | None:
+    async def pop_one(self, predicate: TableSelectPredicate[T] | None = None) -> TableRecord[T] | None:
         selected = await self.select_one(predicate)
-        await self.remove_one(predicate)
+        await self.delete_one(predicate)
         return selected
 
     async def create(self) -> None:
@@ -113,15 +119,18 @@ class TableABC[T](ABC):
 
 
 @dataclass(slots=True, frozen=True)
-class MemoryTable[T](TableABC[T]):
+class MemoryTable[T](Table[T]):
     _records: Set[TableRecord[T]] = field(default_factory=set)
 
-    async def select(self, predicate: TableChoicePredicate[T] | None = None) -> Tuple[TableRecord[T], ...]:
+    async def contains(self, record: TableRecord[T]) -> bool:
+        return record in self._records
+
+    async def select(self, predicate: TableSelectPredicate[T] | None = None) -> Tuple[TableRecord[T], ...]:
         if not self._records:
             return ()
         return tuple(filter(predicate, self._records) if predicate else self._records)
 
-    async def select_one(self, predicate: TableChoicePredicate[T] | None = None) -> TableRecord[T] | None:
+    async def select_one(self, predicate: TableSelectPredicate[T] | None = None) -> TableRecord[T] | None:
         if not self._records:
             return None
         return next(filter(predicate, self._records) if predicate else iter(self._records), None)
@@ -132,7 +141,7 @@ class MemoryTable[T](TableABC[T]):
             self._records.discard(record)
         self._records.add(record)
 
-    async def remove(self, predicate: TableChoicePredicate[T] | None = None) -> None:
+    async def delete(self, predicate: TableSelectPredicate[T] | None = None) -> None:
         if not self._records:
             return
         elif not predicate:
@@ -142,11 +151,11 @@ class MemoryTable[T](TableABC[T]):
             if predicate(record):
                 self._records.discard(record)
     
-    async def remove_one(self, predicate: TableChoicePredicate[T] | None = None) -> None:
+    async def delete_one(self, predicate: TableSelectPredicate[T] | None = None) -> None:
         if (record := await self.select_one(predicate)):
             self._records.discard(record)
 
-    async def update(self, predicate: TableChoicePredicate[T] | None = None, **to_update: T) -> None:
+    async def update(self, predicate: TableSelectPredicate[T] | None = None, **to_update: T) -> None:
         if not self._records:
             return
         elif not predicate:
@@ -161,27 +170,205 @@ class MemoryTable[T](TableABC[T]):
                 self._records.discard(record)
                 self._records.add(record._replace(**to_update))
 
-    async def update_one(self, predicate: TableChoicePredicate[T] | None = None, **to_update: T) -> None:
+    async def update_one(self, predicate: TableSelectPredicate[T] | None = None, **to_update: T) -> None:
         if (record := await self.select_one(predicate)):
             self._records.discard(record)
             self._records.add(record._replace(**to_update))
 
 
 @dataclass(slots=True, frozen=True)
-class MemoizedTable[T](TableABC[T]):
+class SQLTable[T](Table[T], ABC):
     database: PathLike
+    _executor_factory: _ExecutorFactory = field(default=single_executor)
+    _sql_selector: str = field(init=False)
+    
+    @classmethod
+    @abstractmethod
+    async def from_database(cls, name: str, database: PathLike, executor_factory: _ExecutorFactory = single_executor) -> Self: ...
+
+    def __post_init__(self) -> None:
+        Table.__post_init__(self)
+        object.__setattr__(self, 'database', abspath(self.database))
+        object.__setattr__(self, '_sql_selector', 'WHERE ' + ' AND '.join(
+            f'{k} = ?' for k in self._record_factory._fields
+        ))
+
+    @property
+    def _executor(self) -> Executor:
+        return self._executor_factory(self.database)
+    
+    async def run_executor(self) -> None:
+        await Executor._instances[self.database]
+
+
+@dataclass(slots=True, frozen=True)
+class SolidTable[T](SQLTable[T]):
+    @classmethod
+    async def from_database(cls, name: str, database: PathLike, executor_factory: _ExecutorFactory = single_executor) -> Self:
+        return SolidTable(
+            name,
+            tuple(
+                TableColumn(sql, default[0])
+                for sql, default in zip(
+                    search(
+                        r'CREATE TABLE\s+\w+\s*\((.*)\)',
+                        (await single_executor(database)(
+                            f'SELECT sql FROM sqlite_master WHERE type = "table" AND name = "{name}"'
+                        )).fetchone()[0],
+                        IGNORECASE
+                    ).group(1).split(','),
+                    (await single_executor(database)(
+                        f'SELECT dflt_value FROM pragma_table_info("{name}")'
+                    ))
+                )
+            ),
+            database,
+            executor_factory
+        )
+    
+    async def contains(self, record: TableRecord[T]) -> bool:
+        return bool((await self._executor(
+            'SELECT * FROM %s WHERE %s' % (
+                self.name,
+                ' AND '.join(f'{k} = ?' for k in record._fields)
+            ),
+            record
+        )).fetchone())
+
+    async def select(self, predicate: TableSelectPredicate[T] | None = None) -> Tuple[TableRecord[T]]:
+        cursor = (await self._executor(
+            'SELECT %s FROM %s' % (
+                ', '.join(column.name for column in self.columns),
+                self.name
+            )
+        ))
+        if not cursor:
+            return ()
+        return tuple(
+            (record for values in cursor if predicate(record := self._record_factory(*values)))
+            if predicate else
+            (self._record_factory(*values) for values in cursor)
+        )
+
+    async def select_one(self, predicate: TableSelectPredicate[T] | None = None) -> TableRecord[T] | None:
+        cursor = (await self._executor(
+            'SELECT %s FROM %s' % (
+                ', '.join(column.name for column in self.columns),
+                self.name
+            )
+        ))
+        if not cursor:
+            return None
+        return next(
+            (record for values in cursor if predicate(record := self._record_factory(*values)))
+            if predicate else
+            (self._record_factory(*values) for values in cursor),
+            None
+        )
+
+    async def insert(self, ignore_on_repeat: bool = False, **values: T) -> None:
+        record = self._record_factory(**values)
+        await self._executor(
+            'INSERT OR %s INTO %s (%s) VALUES (%s)' % (
+                'IGNORE' if ignore_on_repeat else 'REPLACE',
+                self.name,
+                ', '.join(record._fields),
+                ', '.join('?' * len(record))
+            ),
+            record
+        )
+
+    async def delete(self, predicate: TableSelectPredicate[T] | None = None) -> None:
+        if not predicate:
+            await self._executor(f'DELETE FROM {self.name}')
+            return
+        sql = f'DELETE FROM {self.name} {self._sql_selector}'
+        for record in self.select(predicate):
+            await self._executor(self.database)(sql, record)
+
+    async def delete_one(self, predicate: TableSelectPredicate[T] | None = None) -> None:
+        if record := await self.select_one(predicate):
+            await self._executor(f'DELETE FROM {self.name} {self._sql_selector}', record)
+
+    async def update(self, predicate: TableSelectPredicate[T] | None = None, **to_update: T) -> None:
+        if not predicate:
+            await self._executor('UPDATE %s SET %s' % (
+                self.name,
+                ', '.join(f'{k} = ?' for k in to_update)
+            ), to_update.values())
+            return
+        sql = 'UPDATE %s SET %s %s' % (
+            self.name,
+            ', '.join(f'{k} = ?' for k in to_update),
+            self._sql_selector
+        )
+        for record in self.select(predicate):
+            await self._executor(sql, (*to_update.values(), *record))
+
+    async def update_one(self, predicate: TableSelectPredicate[T] | None = None, **to_update: T) -> None:
+        if record := self.select_one(predicate):
+            await self._executor(
+                'UPDATE %s SET %s %s' % (
+                    self.name,
+                    ', '.join(f'{k} = ?' for k in to_update),
+                    self._sql_selector
+                ),
+                (*to_update.values(), *record)
+            )
+
+    async def create(self) -> None:
+        await self.drop()
+        await self._executor('create')('CREATE TABLE %s (%s)' % (
+            self.name,
+            ', '.join(column.sql for column in self.columns)
+        ))
+
+    async def drop(self) -> None:
+        await self._executor(f'DROP TABLE IF EXISTS {self.name}')
+
+
+@dataclass(slots=True, frozen=True)
+class MemoizedTable[T](SQLTable[T]):
     _records: Set[TableRecord[T]] = field(default_factory=set)
-    executors: Dict[str, _ExecutorFactory] = field(default_factory=dict)
+    _executor_factory: _ExecutorFactory = field(default=deferred_executor)
 
-    def _executor(self, function_name: str) -> Executor:
-        return self.executors.get(function_name, deferred_executor)(self.database)
+    @classmethod
+    async def from_database(cls, name: str, database: PathLike, executor_factory: _ExecutorFactory = deferred_executor) -> Self:
+        table = MemoizedTable(
+            name,
+            tuple(
+                TableColumn(sql, default[0])
+                for sql, default in zip(
+                    search(
+                        r'CREATE TABLE\s+\w+\s*\((.*)\)',
+                        (await single_executor(database)(
+                            f'SELECT sql FROM sqlite_master WHERE type = "table" AND name = "{name}"'
+                        )).fetchone()[0],
+                        IGNORECASE
+                    ).group(1).split(','),
+                    (await single_executor(database)(
+                        f'SELECT dflt_value FROM pragma_table_info("{name}")'
+                    ))
+                )
+            ),
+            database,
+            executor_factory
+        )
+        object.__setattr__(table, '_records', {
+            table._record_factory(*values)
+            for values in (await single_executor(database)(f'SELECT * FROM {name}'))
+        })
+        return table
 
-    async def select(self, predicate: TableChoicePredicate[T] | None = None) -> Tuple[TableRecord[T], ...]:
+    async def contains(self, record: TableRecord[T]) -> bool:
+        return record in self._records
+
+    async def select(self, predicate: TableSelectPredicate[T] | None = None) -> Tuple[TableRecord[T], ...]:
         if not self._records:
             return ()
         return tuple(filter(predicate, self._records) if predicate else self._records)
 
-    async def select_one(self, predicate: TableChoicePredicate[T] | None = None) -> TableRecord[T] | None:
+    async def select_one(self, predicate: TableSelectPredicate[T] | None = None) -> TableRecord[T] | None:
         if not self._records:
             return None
         return next(filter(predicate, self._records), None) if predicate else self._records.pop()
@@ -191,8 +378,9 @@ class MemoizedTable[T](TableABC[T]):
         if record in self._records and not ignore_on_repeat:
             self._records.discard(record)
         self._records.add(record)
-        await self._executor('insert')(
-            'INSERT OR REPLACE INTO %s (%s) VALUES (%s)' % (
+        await self._executor(
+            'INSERT OR %s INTO %s (%s) VALUES (%s)' % (
+                'IGNORE' if ignore_on_repeat else 'REPLACE',
                 self.name,
                 ', '.join(record._fields),
                 ', '.join('?' * len(record))
@@ -200,40 +388,28 @@ class MemoizedTable[T](TableABC[T]):
             record
         )
 
-    async def remove(self, predicate: TableChoicePredicate[T] | None = None) -> None:
+    async def delete(self, predicate: TableSelectPredicate[T] | None = None) -> None:
         if not self._records:
             return
         elif not predicate:
             self._records.clear()
-            await self._executor('remove')(f'DELETE FROM {self.name}')
+            await self._executor(f'DELETE FROM {self.name}')
             return
         selected: Set[TableRecord[T]] = set()
         for record in self._records.copy():
             if predicate(record):
                 self._records.discard(record)
                 selected.add(record)
-        factory = self.executors.get('remove', deferred_executor)
+        sql = f'DELETE FROM {self.name} {self._sql_selector}'
         for record in selected:
-            await factory(self.database)(
-                'DELETE FROM %s WHERE %s' % (
-                    self.name,
-                    ' AND '.join(f'{k} = ?' for k in record._fields)
-                ),
-                record
-            )
+            await self._executor(sql, record)
     
-    async def remove_one(self, predicate: TableChoicePredicate[T] | None = None) -> None:
+    async def delete_one(self, predicate: TableSelectPredicate[T] | None = None) -> None:
         if (record := await self.select_one(predicate)):
             self._records.discard(record)
-            await self._executor('remove')(
-                'DELETE FROM %s WHERE %s' % (
-                    self.name,
-                    ' AND '.join(f'{k} = ?' for k in record._fields)
-                ),
-                record
-            )
+            await self._executor(f'DELETE FROM {self.name} {self._sql_selector}', record)
 
-    async def update(self, predicate: TableChoicePredicate[T] | None = None, **to_update: T) -> None:
+    async def update(self, predicate: TableSelectPredicate[T] | None = None, **to_update: T) -> None:
         if not self._records:
             return
         elif not predicate:
@@ -242,13 +418,10 @@ class MemoizedTable[T](TableABC[T]):
                 '_records',
                 {record._replace(**to_update) for record in self._records}
             )
-            await self._executor('update')(
-                'UPDATE %s SET %s' % (
-                    self.name,
-                    ', '.join(f'{k} = ?' for k in to_update)
-                ),
-                to_update.values()
-            )
+            await self._executor('UPDATE %s SET %s' % (
+                self.name,
+                ', '.join(f'{k} = ?' for k in to_update)
+            ), to_update.values())
             return
         selected: Set[TableRecord[T]] = set()
         for record in self._records.copy():
@@ -256,33 +429,30 @@ class MemoizedTable[T](TableABC[T]):
                 self._records.discard(record)
                 self._records.add(record._replace(**to_update))
                 selected.add(record)
-        factory = self.executors.get('update', deferred_executor)
-        sql = 'UPDATE %s SET %s WHERE ' % (
+        sql = 'UPDATE %s SET %s %s' % (
             self.name,
-            ', '.join(f'{k} = ?' for k in to_update)
+            ', '.join(f'{k} = ?' for k in to_update),
+            self._sql_selector
         )
         for record in selected:
-            await factory(self.database)(
-                sql + ' AND '.join(f'{k} = ?' for k in record._fields),
-                (*to_update.values(), *record)
-            )
+            await self._executor(sql, (*to_update.values(), *record))
 
-    async def update_one(self, predicate: TableChoicePredicate[T] | None = None, **to_update: T) -> None:
+    async def update_one(self, predicate: TableSelectPredicate[T] | None = None, **to_update: T) -> None:
         if (record := await self.select_one(predicate)):
             self._records.discard(record)
             self._records.add(record._replace(**to_update))
-            await self._executor('update')(
-                'UPDATE %s SET %s WHERE %s' % (
+            await self._executor(
+                'UPDATE %s SET %s %s' % (
                     self.name,
                     ', '.join(f'{k} = ?' for k in to_update),
-                    ' AND '.join(f'{k} = ?' for k in record._fields)
+                    self._sql_selector
                 ),
                 (*to_update.values(), *record)
             )
 
     async def create(self) -> None:
         await self.drop()
-        await self._executor('create')('CREATE TABLE %s (%s)' % (
+        await self._executor('CREATE TABLE %s (%s)' % (
             self.name,
             ', '.join(column.sql for column in self.columns)
         ))
@@ -307,7 +477,7 @@ def table_record[T](*columns: TableColumn[T], table_name: str = '') -> Type[Tabl
         (namedtuple(f'{table_name}_RecordBase', names, defaults=defaults),),
         {
             '__hash__': lambda self: hash(tuple(getattr(self, key) for key in self.nonrepeating)),
-            '__eq__': lambda self, other: all(getattr(self, key) == getattr(other, key) for key in self.nonrepeating) if self.nonrepeating else False,
+            '__eq__': lambda self, other: any(getattr(self, key) == getattr(other, key) for key in self.nonrepeating),
             'nonrepeating': tuple(nonrepeating)
         }
     )

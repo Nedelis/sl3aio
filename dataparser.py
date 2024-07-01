@@ -12,6 +12,7 @@ def register_parser[T](type_: Type[T], alias: str, loads: Callable[[bytes], T], 
 
 
 def init_inbuilt_parsers() -> None:
+    register_parser(bool, 'BOOL', bool, str)
     register_parser(dict, 'JSON', loads, dumps)
     register_parser(list, 'JSON', loads, dumps)
     register_parser(time, 'TIME', time.fromisoformat, time.isoformat)
