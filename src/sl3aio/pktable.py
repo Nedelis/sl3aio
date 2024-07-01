@@ -16,7 +16,7 @@ class PrimaryKeyTable[KT, VT]:
     async def contains(self, key: KT) -> bool:
         return await self.table.contains(self.table._record_factory(**{self.primary_key: key}))
 
-    async def get(self, key: KT, *to_get: str) -> Tuple[VT, ...] | VT | None:
+    async def get(self, key: KT, *to_get: str) -> TableRecord[VT] | Tuple[VT, ...] | VT | None:
         selected = await self.table.select_one(self.__predicate(key))
         if not (to_get and selected):
             return selected
