@@ -27,7 +27,7 @@ class _RunIterationFunction(Protocol):
 
 
 @final
-@dataclass(slots=True, match_args=False)
+@dataclass(slots=True)
 class Executor:
     _instances: ClassVar[Dict[PathLike, Self]] = {}
     database: PathLike
@@ -82,7 +82,7 @@ def executor_factory(func: _ExecutorFactory) -> _ExecutorFactory:
         elif (executor := Executor._instances[database]).type_ != type_:
             executor.type_ = type_
             new_executor = func(database)
-            for field in executor.__slots__:
+            for field in ('queue', 'results', 'execute_func', 'run_iteration'):
                 setattr(executor, field, getattr(new_executor, field))
         return executor
     return wrapper
