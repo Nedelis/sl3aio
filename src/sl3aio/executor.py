@@ -1,4 +1,3 @@
-from logging import exception
 from dataclasses import dataclass, field
 from functools import wraps
 from typing import Protocol, ClassVar, Dict, Tuple, Any, Self, Optional, final, Mapping, Sequence
@@ -7,8 +6,11 @@ from os.path import abspath
 from sqlite3 import Cursor, connect, Error as SL3Error, PARSE_DECLTYPES
 from asyncio import Queue, sleep
 from .dataparser import DefaultDataType
+from ._logging import get_logger
 
 type Parameters = Sequence[DefaultDataType] | Mapping[str, DefaultDataType]
+
+_LOGGER = get_logger()
 
 
 class _ExecutorFactory(Protocol):
@@ -56,7 +58,7 @@ class Executor:
             with connect(self.database, detect_types=PARSE_DECLTYPES, **conn_kwargs) as conn:
                 return conn.execute(sql, parameters)
         except SL3Error:
-            exception(f'[{self}] Error while executing SQL query "{sql}"!')
+            _LOGGER.exception(f'[{self}] Error while executing SQL query "{sql}"!')
         return None
 
     async def run(self) -> None:

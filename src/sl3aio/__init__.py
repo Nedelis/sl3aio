@@ -13,8 +13,9 @@ table_record = table.table_record
 PrimaryKeyTable = pktable.PrimaryKeyTable
 create_pktable = pktable.create
 
-register_parser = dataparser.register_parser
-init_builtin_parsers = dataparser.init_builtin_parsers
+Parser = dataparser.Parser
+Parsable = dataparser.Parsable
+BuiltinParsers = dataparser.BuiltinParser
 
 ExecuteParameters = executor.Parameters
 Executor = executor.Executor
