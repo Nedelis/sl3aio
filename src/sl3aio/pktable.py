@@ -5,8 +5,8 @@ from .table import Table, TableRecord, TableSelectPredicate
 
 
 @dataclass(slots=True, frozen=True)
-class PrimaryKeyTable[KT, VT]:
-    table: Table[VT]
+class PrimaryKeyTable[KT, VT, TT]:
+    table: TT | Table[VT]
     primary_key: str
     primary_key_type: Type[KT] = Any
 
