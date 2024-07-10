@@ -10,7 +10,7 @@ from ._logging import get_logger
 
 type Parameters = Sequence[DefaultDataType] | Mapping[str, DefaultDataType]
 
-_LOGGER = get_logger()
+_LOGGER = get_logger('executor')
 
 
 class _ExecutorFactory(Protocol):

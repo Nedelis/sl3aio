@@ -8,7 +8,7 @@ from ._logging import get_logger
 
 type DefaultDataType = bytes | str | int | float | None
 
-__LOGGER = get_logger()
+__LOGGER = get_logger('dataparser')
 
 
 @dataclass(slots=True, frozen=True)
