@@ -3,9 +3,10 @@ from re import IGNORECASE, search
 from os import PathLike
 from os.path import abspath
 from dataclasses import dataclass, field
-from typing import Optional, Any, Tuple, ClassVar, Protocol, Dict, Self, Type, Set, Iterator, Sequence
+from typing import Optional, Any, Tuple, ClassVar, Protocol, Dict, Self, Type, Set, Iterator, Sequence, AsyncGenerator
 from collections import namedtuple
 from .executor import Executor, _ExecutorFactory, deferred_executor, single_executor, Cursor
+from .dataparser import Parser
 
 
 class TableRecord[T](Protocol):
@@ -181,6 +182,24 @@ class SQLTable[T](Table[T], ABC):
     database: PathLike
     _executor_factory: _ExecutorFactory = field(default=single_executor)
     _default_selector: str = field(init=False)
+
+    @staticmethod
+    async def columns_sql(database: PathLike, table: str, executor_factory: _ExecutorFactory = single_executor) -> AsyncGenerator[str, Any]:
+        match_ = search(
+            r'CREATE TABLE\s+\w+\s*\((.*)\)',
+            (await executor_factory(database)(f'SELECT sql FROM sqlite_master WHERE type = "table" AND name = "{table}"')).fetchone()[0],
+            IGNORECASE
+        )
+        for column_sql in (match_.group(1).split(',') if match_ else []):
+            yield column_sql
+
+    @staticmethod
+    async def columns_defaults(database: PathLike, table: str, executor_factory: _ExecutorFactory = single_executor) -> AsyncGenerator[Any, Any]:
+        cursor = await executor_factory(database)(f'SELECT type, dflt_value FROM pragma_table_info("{table}")')
+        for alias, default in cursor:
+            if default is not None and (parser := Parser.get_by_alias(alias)):
+                yield parser.loads(default)
+            yield default
     
     @classmethod
     @abstractmethod
@@ -215,14 +234,10 @@ class SolidTable[T](SQLTable[T]):
         return SolidTable(
             name,
             tuple(
-                TableColumn(sql, default[0])
+                TableColumn(sql, default)
                 for sql, default in zip(
-                    search(
-                        r'CREATE TABLE\s+\w+\s*\((.*)\)',
-                        (await single_executor(database)(f'SELECT sql FROM sqlite_master WHERE type = "table" AND name = "{name}"')).fetchone()[0],
-                        IGNORECASE
-                    ).group(1).split(','),
-                    await single_executor(database)(f'SELECT dflt_value FROM pragma_table_info("{name}")')
+                    SQLTable.columns_sql(database, name),
+                    SQLTable.columns_defaults(database, name)
                 )
             ),
             database,
@@ -313,7 +328,10 @@ class MemoizedTable[T](SQLTable[T]):
                         (await single_executor(database)(f'SELECT sql FROM sqlite_master WHERE type = "table" AND name = "{name}"')).fetchone()[0],
                         IGNORECASE
                     ).group(1).split(','),
-                    await single_executor(database)(f'SELECT dflt_value FROM pragma_table_info("{name}")')
+                    (
+                        Parser.get_by_alias(type).loads(default) if Parser.get_by_alias(type) and default is not None else default
+                        for type, default in await single_executor(database)(f'SELECT type, dflt_value FROM pragma_table_info("{name}")')
+                    )
                 )
             ),
             database,

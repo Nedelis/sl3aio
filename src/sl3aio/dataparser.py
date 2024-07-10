@@ -1,5 +1,5 @@
 from abc import ABCMeta, abstractmethod
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, InitVar
 from json import loads, dumps
 from datetime import datetime, date, time
 from typing import Callable, Type, ClassVar, Set, Tuple, Dict, Any, Self, final
@@ -18,25 +18,34 @@ class Parser[T]:
     aliases: Tuple[str, ...]
     loads: Callable[[bytes], T] = field(repr=False)
     dumps: Callable[[T], DefaultDataType] = field(repr=False)
+    register: InitVar[bool] = True
 
     @staticmethod
-    def get_for[_T](type: Type[_T]) -> 'Parser[_T] | None':
+    def get_by_type[_T](type: Type[_T]) -> 'Parser[_T] | None':
         return next(filter(
             lambda parser: type in parser.types,
             Parser.registry
         ), None)
+    
+    @staticmethod
+    def get_by_alias(alias: str) -> 'Parser | None':
+        return next(filter(
+            lambda parser: alias in parser.aliases,
+            Parser.registry
+        ), None)
 
-    def __post_init__(self) -> None:
+    def __post_init__(self, register: bool) -> None:
         if not self.types:
             __LOGGER.error('Parser must have at least one type corresponding to it!')
         elif not self.aliases:
             __LOGGER.error('Parser must have at least one alias corresponding to it!')
         else:
             Parser.registry.add(self)
-            for alias in self.aliases:
-                register_converter(alias, self.loads)
-            for type in self.types:
-                register_adapter(type, self.dumps)
+            if register:
+                for alias in self.aliases:
+                    register_converter(alias, self.loads)
+                for type in self.types:
+                    register_adapter(type, self.dumps)
 
 
 class _ParsableMeta(type, metaclass=ABCMeta):
@@ -66,6 +75,10 @@ class Parsable(metaclass=_ParsableMeta):
 
 @final
 class BuiltinParser:
+    BLOB: ClassVar[Parser[bytes]] = Parser((bytes,), ('BLOB', 'BYTES'), bytes, bytes, False)
+    INTEGER: ClassVar[Parser[int]] = Parser((int,), ('INTEGER', 'INT'), int, int, False)
+    REAL: ClassVar[Parser[float]] = Parser((float,), ('REAL', 'FLOAT'), float, float, False)
+    TEXT: ClassVar[Parser[str]] = Parser((str,), ('TEXT', 'CHAR', 'VARCHAR'), str, str, False)
     BOOL: ClassVar[Parser[bool]]
     SET: ClassVar[Parser[set]]
     LIST: ClassVar[Parser[list]]

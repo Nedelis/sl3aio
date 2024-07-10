@@ -37,7 +37,7 @@ class PrimaryKeyTable[KT, VT, TT]:
         return await self.table.pop_one(self.__predicate(key))
 
 
-def create[KT, VT, T: PrimaryKeyTable](table: Table[VT], primary_key: str, primary_key_type: Type[KT]) -> Callable[[Type[T]], PrimaryKeyTable[KT, VT] | T]:
-    def wrapper(cls: Type[T]) -> PrimaryKeyTable[KT, VT]:
+def create[KT, VT, TT, T: PrimaryKeyTable](table: TT | Table[VT], primary_key: str, primary_key_type: Type[KT]) -> Callable[[Type[T]], PrimaryKeyTable[KT, VT, TT] | T]:
+    def wrapper(cls: Type[T]) -> PrimaryKeyTable[KT, VT, TT]:
         return cls(table, primary_key, primary_key_type)
     return wrapper
