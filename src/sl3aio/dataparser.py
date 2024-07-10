@@ -66,15 +66,15 @@ class Parsable(metaclass=_ParsableMeta):
 
 @final
 class BuiltinParser:
-    BOOL: ClassVar[Parser[bool]] = NotImplemented
-    SET: ClassVar[Parser[set]] = NotImplemented
-    LIST: ClassVar[Parser[list]] = NotImplemented
-    TUPLE: ClassVar[Parser[tuple]] = NotImplemented
-    DICT: ClassVar[Parser[dict]] = NotImplemented
-    JSON: ClassVar[Parser[dict | list]] = NotImplemented
-    TIME: ClassVar[Parser[time]] = NotImplemented
-    DATE: ClassVar[Parser[date]] = NotImplemented
-    DATETIME: ClassVar[Parser[datetime]] = NotImplemented
+    BOOL: ClassVar[Parser[bool]]
+    SET: ClassVar[Parser[set]]
+    LIST: ClassVar[Parser[list]]
+    TUPLE: ClassVar[Parser[tuple]]
+    DICT: ClassVar[Parser[dict]]
+    JSON: ClassVar[Parser[dict | list]]
+    TIME: ClassVar[Parser[time]]
+    DATE: ClassVar[Parser[date]]
+    DATETIME: ClassVar[Parser[datetime]]
 
     @staticmethod
     def init() -> None:
