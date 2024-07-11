@@ -4,6 +4,7 @@ from os.path import abspath
 from dataclasses import dataclass, field
 from typing import Optional, Any, Tuple, ClassVar, Protocol, Dict, Self, Type, Set, Iterator, Sequence
 from collections import namedtuple
+from itertools import starmap
 from .executor import Executor, _ExecutorFactory, deferred_executor, single_executor, Cursor
 from ._utils import azip, columns_sql, columns_defaults
 
@@ -300,7 +301,7 @@ class MemoizedTable[T](SQLTable[T]):
             executor_factory
         )
         if cursor := await single_executor(database)(f'SELECT * FROM {name}'):
-            object.__setattr__(table, '_records', set(map(table._record_factory, cursor)))
+            object.__setattr__(table, '_records', set(starmap(table._record_factory, cursor)))
         return table
 
     async def contains(self, record: TableRecord[T]) -> bool:
