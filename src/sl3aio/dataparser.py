@@ -1,8 +1,7 @@
-from abc import ABCMeta, abstractmethod
 from dataclasses import dataclass, field, InitVar
 from json import loads, dumps
 from datetime import datetime, date, time
-from typing import Callable, Type, ClassVar, Set, Tuple, Dict, Any, Self, final
+from typing import Callable, Type, ClassVar, Set, Tuple, Dict, Any, final, Protocol
 from sqlite3 import register_adapter, register_converter
 from ._logging import get_logger
 
@@ -15,8 +14,8 @@ __LOGGER = get_logger('dataparser')
 class Parser[T]:
     registry: ClassVar[Set['Parser']] = set()
     types: Tuple[Type[T], ...]
-    aliases: Tuple[str, ...]
-    loads: Callable[[bytes], T] = field(repr=False)
+    typenames: Tuple[str, ...]
+    loads: Callable[[DefaultDataType], T] = field(repr=False)
     dumps: Callable[[T], DefaultDataType] = field(repr=False)
     register: InitVar[bool] = True
 
@@ -28,49 +27,48 @@ class Parser[T]:
         ), None)
     
     @staticmethod
-    def get_by_alias(alias: str) -> 'Parser | None':
+    def get_by_typename(typename: str) -> 'Parser | None':
         return next(filter(
-            lambda parser: alias in parser.aliases,
+            lambda parser: typename in parser.typenames,
             Parser.registry
         ), None)
 
     def __post_init__(self, register: bool) -> None:
+        global __LOGGER
         if not self.types:
             __LOGGER.error('Parser must have at least one type corresponding to it!')
-        elif not self.aliases:
-            __LOGGER.error('Parser must have at least one alias corresponding to it!')
+        elif not self.typenames:
+            __LOGGER.error('Parser must have at least one typename corresponding to it!')
         else:
             Parser.registry.add(self)
             if register:
-                for alias in self.aliases:
-                    register_converter(alias, self.loads)
+                for typename in self.typenames:
+                    register_converter(typename, self.loads)
                 for type in self.types:
                     register_adapter(type, self.dumps)
 
 
-class _ParsableMeta(type, metaclass=ABCMeta):
-    def __new__(cls, name: str, bases: Tuple[Type, ...], namespace: Dict[str, Any]) -> 'Parsable':
-        subcls: Parsable = super().__new__(cls, name, bases, namespace)
-        if name != 'Parsable':
-            subcls.parser = Parser(
-                (subcls,),
-                subcls.aliases if hasattr(subcls, 'aliases') else (subcls.__name__.upper(),),
-                lambda data: subcls.fromdict(loads(data)),
-                lambda parsable: dumps(parsable.asdict(), ensure_ascii=False)
-            )
-        return subcls
-
-
-class Parsable(metaclass=_ParsableMeta):
-    parser: ClassVar[Parser[Self]]
-    aliases: ClassVar[Tuple[str, ...]]
-
+class Parsable(Protocol):
     @classmethod
-    @abstractmethod
     def fromdict[T](cls: Type[T], value: Dict[str, Any]) -> T: ...
 
-    @abstractmethod
     def asdict(self) -> Dict[str, Any]: ...
+
+
+def parsable[T: Parsable](typenames: Tuple[str, ...] | Type[T] = (), register_parser: bool = True) -> Type[T] | Callable[[Type[T]], Type[T]]:
+    def decorator(cls: Type[T]) -> Type[T]:
+        cls.parser = Parser(
+            (cls,),
+            typenames,
+            lambda data: cls.fromdict(loads(data)),
+            lambda obj: dumps(obj.asdict(), ensure_ascii=False),
+            register_parser
+        )
+        return cls
+    if isinstance(typenames, tuple):
+        return decorator
+    _cls, typenames = typenames, (typenames.__name__.upper(),)
+    return decorator(_cls)
 
 
 @final

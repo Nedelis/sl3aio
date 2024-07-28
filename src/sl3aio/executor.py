@@ -1,20 +1,19 @@
 from dataclasses import dataclass, field
 from functools import wraps
-from typing import Protocol, ClassVar, Dict, Tuple, Any, Self, Optional, final, Mapping, Sequence
-from os import PathLike
+from typing import Protocol, ClassVar, Dict, Tuple, Any, Self, Optional, final, Mapping, Iterable
 from os.path import abspath
 from sqlite3 import Cursor, connect, Error as SL3Error, PARSE_DECLTYPES
 from asyncio import Queue, sleep
 from .dataparser import DefaultDataType
 from ._logging import get_logger
 
-type Parameters = Sequence[DefaultDataType] | Mapping[str, DefaultDataType]
+type Parameters = Iterable[DefaultDataType] | Mapping[str, DefaultDataType]
 
 _LOGGER = get_logger('executor')
 
 
 class _ExecutorFactory(Protocol):
-    def __call__(self, database: PathLike) -> 'Executor':
+    def __call__(self, database: str) -> 'Executor':
         ...
 
 
@@ -31,8 +30,8 @@ class _RunIterationFunction(Protocol):
 @final
 @dataclass(slots=True)
 class Executor:
-    _instances: ClassVar[Dict[PathLike, Self]] = {}
-    database: PathLike
+    instances: ClassVar[Dict[str, Self]] = {}
+    database: str
     queue: Queue[Tuple[str, Parameters, Dict[str, Any]]]
     results: Optional[Queue[Cursor | None]] = None
     execute_func: Optional[_ExecuteFunction] = None
@@ -75,13 +74,13 @@ class Executor:
 
 def executor_factory(func: _ExecutorFactory) -> _ExecutorFactory:
     @wraps(func)
-    def wrapper(database: PathLike) -> Executor:
+    def wrapper(database: str) -> Executor:
         database, type_ = abspath(database), func.__name__
-        if database not in Executor._instances:
+        if database not in Executor.instances:
             executor = func(database)
             executor.type_ = type_
-            Executor._instances[database] = executor
-        elif (executor := Executor._instances[database]).type_ != type_:
+            Executor.instances[database] = executor
+        elif (executor := Executor.instances[database]).type_ != type_:
             executor.type_ = type_
             new_executor = func(database)
             for field in ('queue', 'results', 'execute_func', 'run_iteration'):
@@ -91,39 +90,47 @@ def executor_factory(func: _ExecutorFactory) -> _ExecutorFactory:
 
 
 @executor_factory
-def single_executor(database: PathLike) -> Executor:
+def single_executor(database: str) -> Executor:
     executor = Executor(database, Queue(1))
+
     @executor.set_execute
     async def _(exc: Executor, sql: str, parameters: Parameters = (), **conn_kwargs) -> None:
         await exc.queue.put((sql, parameters, conn_kwargs))
         result = exc.execute_safely(sql, parameters, **conn_kwargs)
         await exc.queue.get()
         return result
+
     return executor
 
 
 @executor_factory
-def parallel_executor(database: PathLike) -> Executor:
+def parallel_executor(database: str) -> Executor:
     executor = Executor(database, Queue(), Queue())
+
     @executor.set_execute
     async def _(exc: Executor, sql: str, parameters: Parameters = (), **conn_kwargs) -> None:
         await exc.queue.put((sql, parameters, conn_kwargs))
         return await exc.results.get()
+
     @executor.set_run_iteration
     async def _(exc: Executor) -> None:
         sql, parameters, conn_kwargs = await exc.queue.get()
         await exc.results.put(exc.execute_safely(sql, parameters, **conn_kwargs))
+
     return executor
 
 
 @executor_factory
-def deferred_executor(database: PathLike) -> Executor:
+def deferred_executor(database: str) -> Executor:
     executor = Executor(database, Queue())
+
     @executor.set_execute
     async def _(exc: Executor, sql: str, parameters: Parameters = (), **conn_kwargs) -> None:
         return await exc.queue.put((sql, parameters, conn_kwargs))
+
     @executor.set_run_iteration
     async def _(exc: Executor) -> None:
         sql, parameters, conn_kwargs = await exc.queue.get()
         exc.execute_safely(sql, parameters, **conn_kwargs)
+
     return executor
