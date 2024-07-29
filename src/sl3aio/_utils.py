@@ -1,6 +1,6 @@
 from typing import AsyncIterable, AsyncGenerator, List, Any
 from asyncio import gather
-from re import search, sub, IGNORECASE, DOTALL, MULTILINE
+from re import search, IGNORECASE, DOTALL, MULTILINE
 from .executor import _ExecutorFactory, single_executor
 from .dataparser import Parser
 
