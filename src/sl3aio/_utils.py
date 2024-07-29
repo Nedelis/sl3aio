@@ -1,6 +1,6 @@
 from typing import AsyncIterable, AsyncGenerator, List, Any
 from asyncio import gather
-from re import search, IGNORECASE
+from re import search, sub, IGNORECASE, DOTALL, MULTILINE
 from .executor import _ExecutorFactory, single_executor
 from .dataparser import Parser
 
@@ -28,7 +28,8 @@ async def columns_sql(database: str, table: str, executor_factory: _ExecutorFact
 
 async def columns_defaults(database: str, table: str, executor_factory: _ExecutorFactory = single_executor) -> AsyncGenerator[str, Any]:
     for alias, default in await executor_factory(database)(f'SELECT type, dflt_value FROM pragma_table_info("{table}")'):
-        default = default.strip('\'"`') if isinstance(default, str) else default
+        if isinstance(default, str) and (match_ := search(r'["\'`](.*)["\'`]', default, DOTALL | MULTILINE)):
+            default = match_.group(1)
         try:
             yield Parser.get_by_typename(alias).loads(default)
             continue
