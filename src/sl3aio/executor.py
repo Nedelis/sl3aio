@@ -1,136 +1,185 @@
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
-from functools import wraps
-from typing import Protocol, ClassVar, Dict, Tuple, Any, Self, Optional, final, Mapping, Iterable
-from os.path import abspath
-from sqlite3 import Cursor, connect, Error as SL3Error, PARSE_DECLTYPES
-from asyncio import Queue, sleep
+from asyncio import AbstractEventLoop, Future, Queue, Task, get_running_loop, create_task
+from functools import partial
+from pathlib import Path
+from sqlite3 import Cursor, connect, Connection
+from collections.abc import AsyncGenerator, Callable, Iterable, Mapping
+from typing import Any, ClassVar, Self
 from .dataparser import DefaultDataType
-from ._logging import get_logger
+
+__all__ = ['Parameters', 'FunctionExecutor', 'ConnectionManager', 'CursorManager']
 
 type Parameters = Iterable[DefaultDataType] | Mapping[str, DefaultDataType]
 
-_LOGGER = get_logger('executor')
 
-
-class _ExecutorFactory(Protocol):
-    def __call__(self, database: str) -> 'Executor':
-        ...
-
-
-class _ExecuteFunction(Protocol):
-    async def __call__(self, executor: 'Executor', sql: str, parameters: Parameters, **conn_kwargs) -> Cursor | None:
-        ...
-
-
-class _RunIterationFunction(Protocol):
-    async def __call__(self, executor: 'Executor') -> None:
-        ...
-
-
-@final
 @dataclass(slots=True)
-class Executor:
-    instances: ClassVar[Dict[str, Self]] = {}
-    database: str
-    queue: Queue[Tuple[str, Parameters, Dict[str, Any]]]
-    results: Optional[Queue[Cursor | None]] = None
-    execute_func: Optional[_ExecuteFunction] = None
-    run_iteration: Optional[_RunIterationFunction] = None
-    type_: str = ''
-    running: bool = field(init=False, default=False)
+class FunctionExecutor:
+    _loop: AbstractEventLoop = field(init=False, default_factory=get_running_loop)
+    _executor: ThreadPoolExecutor = field(init=False, default_factory=partial(ThreadPoolExecutor, max_workers=1))
+    _queue: Queue[tuple[Callable[[], Any], Future]] = field(init=False, default_factory=Queue)
+    _worker_task: Task = field(init=False, default=None)
 
-    def __post_init__(self) -> None:
-        self.database = abspath(self.database)
+    async def _worker(self) -> None:
+        while True:
+            task = await self._queue.get()
+            if task is None:
+                self._queue.task_done()
+                break
+            elif task[1].done():
+                self._queue.task_done()
+                continue
+            try:
+                task[1].set_result(await self._loop.run_in_executor(self._executor, task[0]))
+            except Exception as e:
+                task[1].set_exception(e)
+            finally:
+                self._queue.task_done()
+    
+    async def start(self) -> None:
+        if self._worker_task is not None:
+            await self.stop()
+        self._worker_task = create_task(self._worker())
+
+    async def stop(self) -> None:
+        if self._worker_task is not None:
+            self._queue.put_nowait(None)
+            await self._queue.join()
+            self._worker_task.cancel()
+            self._worker_task = None
+
+    def __call__[**P, T](self, func: Callable[P, T], *args: P.args, **kwargs: P.kwargs) -> Future[T]:
+        self._queue.put_nowait((partial(func, *args, **kwargs), result := self._loop.create_future()))
+        return result
+    
+    async def __aenter__(self) -> Self:
+        await self.start()
+        return self
+    
+    async def __aexit__(self, *args) -> None:
+        await self.stop()
+        if args[1] is not None:
+            raise args[1]
+
+
+@dataclass(slots=True, init=False)
+class ConnectionManager(FunctionExecutor):
+    _instances: ClassVar[dict[str, Self]] = {}
+    _connection_properties: dict[str, Any]
+    _connection: Connection | None
+
+    def __new__(cls, database: str | Path, **connection_properties) -> Self:
+        database = str((database if isinstance(database, Path) else Path(database)).resolve())
+        if database in cls._instances:
+            return cls._instances[database]
+        super(ConnectionManager, obj := super(ConnectionManager, cls).__new__(cls)).__init__()
+        obj._connection_properties = connection_properties | {'database': database, 'check_same_thread': False}
+        obj._connection = None
+        cls._instances[database] = obj
+        return obj
+    
+    def __init__(self, *_, **__) -> None:
+        pass
 
     @property
-    def busy(self) -> bool:
-        return not self.queue.empty()
-
-    def set_execute(self, execute_func: _ExecuteFunction) -> None:
-        self.execute_func = execute_func
-
-    def set_run_iteration(self, run_iteration: _RunIterationFunction) -> None:
-        self.run_iteration = run_iteration
-
-    def execute_safely(self, sql: str, parameters: Parameters = (), **conn_kwargs) -> Cursor | None:
-        try:
-            with connect(self.database, detect_types=PARSE_DECLTYPES, **conn_kwargs) as conn:
-                return conn.execute(sql, parameters)
-        except SL3Error:
-            _LOGGER.exception(f'[{self}] Error while executing SQL query "{sql}"!')
-        return None
-
-    async def run(self) -> None:
-        self.running = True
-        while self.running:
-            if self.run_iteration is None:
-                await sleep(1)
-                continue
-            await self.run_iteration(self)
+    def database(self) -> str:
+        return self._connection_properties['database']
     
-    async def __call__(self, sql: str, parameters: Parameters = (), **conn_kwargs) -> Cursor | None:
-        return await self.execute_func(self, sql, parameters, **conn_kwargs)
+    async def execute(self, sql: str, parameters: Parameters = ()) -> 'CursorManager':
+        return CursorManager(self, await self(
+            Connection.execute,
+            connect(**self._connection_properties)
+            if self._connection is None else
+            self._connection,
+            sql,
+            parameters
+        ))
+    
+    async def executemany(self, sql: str, parameters: Iterable[Parameters]) -> 'CursorManager':
+        return CursorManager(self, await self(
+            Connection.executemany,
+            connect(**self._connection_properties)
+            if self._connection is None else
+            self._connection,
+            sql,
+            parameters
+        ))
+
+    async def executescript(self, sql_script: str) -> 'CursorManager':
+        return CursorManager(self, await self(
+            Connection.executescript,
+            connect(**self._connection_properties)
+            if self._connection is None else
+            self._connection,
+            sql_script
+        ))
+    
+    async def start(self) -> None:
+        await super(ConnectionManager, self).start()
+        self._connection = connect(**self._connection_properties)
+
+    async def stop(self) -> None:
+        await super(ConnectionManager, self).stop()
+        if self._connection is not None:
+            self._connection.commit()
+            self._connection.close()
+            self._connection = None
+    
+    async def remove(self) -> None:
+        await self.stop()
+        self._instances.pop(self.database)
+
+    async def set_connection_properties(self, **connection_properties) -> None:
+        running = self._connection is not None
+        await self.stop()
+        if 'database' in connection_properties:
+            await self.remove()
+        self._connection_properties.update(connection_properties | {'check_same_thread': False})
+        if running:
+            await self.start()
 
 
-def executor_factory(func: _ExecutorFactory) -> _ExecutorFactory:
-    @wraps(func)
-    def wrapper(database: str) -> Executor:
-        database, type_ = abspath(database), func.__name__
-        if database not in Executor.instances:
-            executor = func(database)
-            executor.type_ = type_
-            Executor.instances[database] = executor
-        elif (executor := Executor.instances[database]).type_ != type_:
-            executor.type_ = type_
-            new_executor = func(database)
-            for field in ('queue', 'results', 'execute_func', 'run_iteration'):
-                setattr(executor, field, getattr(new_executor, field))
-        return executor
-    return wrapper
+@dataclass(slots=True)
+class CursorManager:
+    connection_manager: ConnectionManager
+    _cursor: Cursor
+    
+    async def execute(self, sql: str, parameters: Parameters = ()) -> Self:
+        return CursorManager(self, await self.connection_manager(Cursor.execute, self._cursor, sql, parameters))
+    
+    async def executemany(self, sql: str, parameters: Iterable[Parameters]) -> Self:
+        return CursorManager(self, await self.connection_manager(Cursor.executemany, self._cursor, sql, parameters))
 
+    async def executescript(self, sql_script: str) -> Self:
+        return CursorManager(self, await self.connection_manager(Cursor.executescript, self._cursor, sql_script))
+    
+    async def fetch(self, start: int = 0, stop: int | None = None, step: int = 1) -> list:
+        result = []
+        try:
+            i = 0
+            while True:
+                if i > start:
+                    if stop is not None and i >= stop:
+                        break
+                    elif i % step == 0:
+                        result.append(await anext(self))
+                    else:
+                        await anext(self)
+                i += 1
+        finally:
+            return result
+        
+    async def fetchone(self) -> Any | None:
+        return await anext(self, None)
 
-@executor_factory
-def single_executor(database: str) -> Executor:
-    executor = Executor(database, Queue(1))
+    async def __aiter__(self) -> AsyncGenerator[Any, None]:
+        while True:
+            try:
+                yield await anext(self)
+            except StopAsyncIteration:
+                break
 
-    @executor.set_execute
-    async def _(exc: Executor, sql: str, parameters: Parameters = (), **conn_kwargs) -> None:
-        await exc.queue.put((sql, parameters, conn_kwargs))
-        result = exc.execute_safely(sql, parameters, **conn_kwargs)
-        await exc.queue.get()
+    async def __anext__(self) -> Any:
+        if (result := await self.connection_manager(next, self._cursor, None)) is None:
+            raise StopAsyncIteration()
         return result
-
-    return executor
-
-
-@executor_factory
-def parallel_executor(database: str) -> Executor:
-    executor = Executor(database, Queue(), Queue())
-
-    @executor.set_execute
-    async def _(exc: Executor, sql: str, parameters: Parameters = (), **conn_kwargs) -> None:
-        await exc.queue.put((sql, parameters, conn_kwargs))
-        return await exc.results.get()
-
-    @executor.set_run_iteration
-    async def _(exc: Executor) -> None:
-        sql, parameters, conn_kwargs = await exc.queue.get()
-        await exc.results.put(exc.execute_safely(sql, parameters, **conn_kwargs))
-
-    return executor
-
-
-@executor_factory
-def deferred_executor(database: str) -> Executor:
-    executor = Executor(database, Queue())
-
-    @executor.set_execute
-    async def _(exc: Executor, sql: str, parameters: Parameters = (), **conn_kwargs) -> None:
-        return await exc.queue.put((sql, parameters, conn_kwargs))
-
-    @executor.set_run_iteration
-    async def _(exc: Executor) -> None:
-        sql, parameters, conn_kwargs = await exc.queue.get()
-        exc.execute_safely(sql, parameters, **conn_kwargs)
-
-    return executor

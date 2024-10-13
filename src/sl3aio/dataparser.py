@@ -1,74 +1,63 @@
 from dataclasses import dataclass, field, InitVar
 from json import loads, dumps
 from datetime import datetime, date, time
-from typing import Callable, Type, ClassVar, Set, Tuple, Dict, Any, final, Protocol
+from collections.abc import Callable, Iterable
+from typing import ClassVar, Self, final, Protocol
 from sqlite3 import register_adapter, register_converter
-from ._logging import get_logger
+
+__all__ = ['DefaultDataType', 'Parser', 'Parsable', 'BuiltinParser']
 
 type DefaultDataType = bytes | str | int | float | None
-
-__LOGGER = get_logger('dataparser')
-
-
-@dataclass(slots=True, frozen=True)
-class Parser[T]:
-    registry: ClassVar[Set['Parser']] = set()
-    types: Tuple[Type[T], ...]
-    typenames: Tuple[str, ...]
-    loads: Callable[[DefaultDataType], T] = field(repr=False)
-    dumps: Callable[[T], DefaultDataType] = field(repr=False)
-    register: InitVar[bool] = True
-
-    @staticmethod
-    def get_by_type[_T](type: Type[_T]) -> 'Parser[_T] | None':
-        return next(filter(
-            lambda parser: type in parser.types,
-            Parser.registry
-        ), None)
-    
-    @staticmethod
-    def get_by_typename(typename: str) -> 'Parser | None':
-        return next(filter(
-            lambda parser: typename in parser.typenames,
-            Parser.registry
-        ), None)
-
-    def __post_init__(self, register: bool) -> None:
-        global __LOGGER
-        if not self.types:
-            __LOGGER.error('Parser must have at least one type corresponding to it!')
-        elif not self.typenames:
-            __LOGGER.error('Parser must have at least one typename corresponding to it!')
-        else:
-            Parser.registry.add(self)
-            if register:
-                for typename in self.typenames:
-                    register_converter(typename, self.loads)
-                for type in self.types:
-                    register_adapter(type, self.dumps)
 
 
 class Parsable(Protocol):
     @classmethod
-    def fromdict[T](cls: Type[T], value: Dict[str, Any]) -> T: ...
+    def from_data(cls, data: str) -> Self: ...
 
-    def asdict(self) -> Dict[str, Any]: ...
+    def to_data(self) -> 'DefaultDataType | Parsable': ...
 
 
-def parsable[T: Parsable](typenames: Tuple[str, ...] | Type[T] = (), register_parser: bool = True) -> Type[T] | Callable[[Type[T]], Type[T]]:
-    def decorator(cls: Type[T]) -> Type[T]:
-        cls.parser = Parser(
-            (cls,),
-            typenames,
-            lambda data: cls.fromdict(loads(data)),
-            lambda obj: dumps(obj.asdict(), ensure_ascii=False),
-            register_parser
+@dataclass(slots=True, frozen=True)
+class Parser[T]:
+    registry: ClassVar[set['Parser']] = set()
+    types: tuple[type[T], ...]
+    typenames: tuple[str, ...]
+    loads: Callable[[DefaultDataType], T] = field(repr=False)
+    dumps: Callable[[T], DefaultDataType] = field(repr=False)
+    register: InitVar[bool] = True
+
+    @classmethod
+    def from_parsable(cls, parsable: type[Parsable], typenames: Iterable[str] = (), register: bool = True) -> Self:
+        return cls(
+            (parsable,),
+            tuple(typenames) or (parsable.__name__,),
+            parsable.from_data,
+            parsable.to_data,
+            register
         )
-        return cls
-    if isinstance(typenames, tuple):
-        return decorator
-    _cls, typenames = typenames, (typenames.__name__.upper(),)
-    return decorator(_cls)
+
+    @classmethod
+    def get_by_type(cls, __type: T) -> Self | None:
+        return next((parser for parser in cls.registry if __type in parser.types), None)
+    
+    @classmethod
+    def get_by_typename(cls, typename: str, case_sensitive: bool = False) -> Self | None:
+        if case_sensitive:
+            return next((parser for parser in cls.registry if typename in parser.typenames), None)
+        typename = typename.lower()
+        for parser in cls.registry:
+            if typename in (ptypename.lower() for ptypename in parser.typenames):
+                return parser
+
+    def __post_init__(self, register: bool) -> None:
+        assert self.types, 'Parser must have at least one type corresponding to it!'
+        assert self.typenames, 'Parser must have at least one typename corresponding to it!'
+        Parser.registry.add(self)
+        if register:
+            for typename in self.typenames:
+                register_converter(typename, self.loads)
+            for type in self.types:
+                register_adapter(type, self.dumps)
 
 
 @final
