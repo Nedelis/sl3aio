@@ -19,6 +19,11 @@ class FunctionExecutor:
     _executor: ThreadPoolExecutor = field(init=False, default_factory=partial(ThreadPoolExecutor, max_workers=1))
     _queue: Queue[tuple[Callable[[], Any], Future]] = field(init=False, default_factory=Queue)
     _worker_task: Task = field(init=False, default=None)
+    _refcount: int = field(init=False, default=0)
+
+    @property
+    def running(self) -> bool:
+        return self._worker_task is not None
 
     async def _worker(self) -> None:
         while True:
@@ -37,18 +42,23 @@ class FunctionExecutor:
                 self._queue.task_done()
     
     async def start(self) -> None:
-        if self._worker_task is not None:
-            await self.stop()
-        self._worker_task = create_task(self._worker())
+        self._refcount += 1
+        if self._worker_task is None:
+            self._worker_task = create_task(self._worker())
 
     async def stop(self) -> None:
-        if self._worker_task is not None:
+        if self._refcount == 0:
+            return
+        elif self._refcount != 1:
+            self._refcount -= 1
+        else:
             self._queue.put_nowait(None)
             await self._queue.join()
             self._worker_task.cancel()
             self._worker_task = None
+            self._refcount = 0
 
-    def __call__[**P, T](self, func: Callable[P, T], *args: P.args, **kwargs: P.kwargs) -> Future[T]:
+    def __call__[**P, R](self, func: Callable[P, R], *args: P.args, **kwargs: P.kwargs) -> Future[R]:
         self._queue.put_nowait((partial(func, *args, **kwargs), result := self._loop.create_future()))
         return result
     
@@ -85,42 +95,36 @@ class ConnectionManager(FunctionExecutor):
     def database(self) -> str:
         return self._connection_properties['database']
     
+    def _get_connection(self) -> Connection:
+        if self._connection is None:
+            self._connection = connect(**self._connection_properties)
+        return self._connection
+    
+    async def _aget_connection(self) -> Connection:
+        return await self(ConnectionManager._get_connection, self)
+    
     async def execute(self, sql: str, parameters: Parameters = ()) -> 'CursorManager':
-        return CursorManager(self, await self(
-            Connection.execute,
-            connect(**self._connection_properties)
-            if self._connection is None else
-            self._connection,
-            sql,
-            parameters
-        ))
+        return CursorManager(self, await self(Connection.execute, await self._aget_connection(), sql, parameters))
     
     async def executemany(self, sql: str, parameters: Iterable[Parameters]) -> 'CursorManager':
-        return CursorManager(self, await self(
-            Connection.executemany,
-            connect(**self._connection_properties)
-            if self._connection is None else
-            self._connection,
-            sql,
-            parameters
-        ))
+        return CursorManager(self, await self(Connection.executemany, await self._aget_connection(), sql, parameters))
 
     async def executescript(self, sql_script: str) -> 'CursorManager':
-        return CursorManager(self, await self(
-            Connection.executescript,
-            connect(**self._connection_properties)
-            if self._connection is None else
-            self._connection,
-            sql_script
-        ))
+        return CursorManager(self, await self(Connection.executescript, await self._aget_connection(), sql_script))
+    
+    async def commit(self) -> None:
+        await self(Connection.commit, await self._aget_connection())
+
+    async def rollback(self) -> None:
+        await self(Connection.rollback, await self._aget_connection())
     
     async def start(self) -> None:
         await super(ConnectionManager, self).start()
-        self._connection = connect(**self._connection_properties)
+        await self._aget_connection()
 
     async def stop(self) -> None:
         await super(ConnectionManager, self).stop()
-        if self._connection is not None:
+        if self._refcount == 0 and self._connection is not None:
             self._connection.commit()
             self._connection.close()
             self._connection = None

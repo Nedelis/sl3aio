@@ -55,12 +55,12 @@ class TestSQLTables(unittest.IsolatedAsyncioTestCase):
         print(Parser.from_parsable(UserData), Parser.registry)
         print(Parser.get_by_typename('userdata'))
         async with ConnectionManager(TEST_DB, detect_types=PARSE_DECLTYPES) as conn:
-            table = await SolidTable.from_database('users', conn)
-            await table.insert(
-                id=3154135,
-                name='John Smith',
-                extra_data=extra_data
-            )
+            async with await SolidTable.from_database('users', conn) as table:
+                await table.insert(
+                    id=3154135,
+                    name='John Smith',
+                    extra_data=extra_data
+                )
             print(await table.select_one(lambda record, _: record.id == 3154135))
             self.assertEqual(
                 extra_data,

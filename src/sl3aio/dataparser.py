@@ -59,6 +59,13 @@ class Parser[T]:
             for type in self.types:
                 register_adapter(type, self.dumps)
 
+    def remove(self) -> None:
+        Parser.registry.discard(self)
+        for typename in self.typenames:
+            register_converter(typename, str)
+        for type in self.types:
+            register_adapter(type, str)
+
 
 @final
 class BuiltinParser:
