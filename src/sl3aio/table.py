@@ -1,7 +1,8 @@
-from collections.abc import AsyncIterator, Callable, Awaitable
-from dataclasses import dataclass, field
+from collections.abc import AsyncIterator, Callable, Awaitable, Container, Generator
+from dataclasses import dataclass, field, replace
+from functools import partial
 from re import DOTALL, IGNORECASE, MULTILINE, match as re_match, search
-from typing import ClassVar, Self, Protocol, Never
+from typing import Any, ClassVar, Self, Protocol, Never
 from inspect import iscoroutinefunction
 from abc import ABC, abstractmethod
 from .executor import ConnectionManager, CursorManager, FunctionExecutor, Parameters
@@ -54,8 +55,8 @@ class TableRecord[T](tuple[T, ...]):
     def __getattr__(self, name: str) -> T:
         return self[type(self).fields.index(name)]
     
-    def __getitem__(self, key: int | str) -> T:
-        return super().__getitem__(key) if isinstance(key, int) else self[type(self).fields.index(key)]
+    def __getitem__(self, key: int | slice | str) -> T:
+        return super().__getitem__(key) if isinstance(key, (int, slice)) else self[type(self).fields.index(key)]
     
     def __eq__(self, other: Self) -> bool:
         return any(getattr(self, k) == getattr(other, k) for k in self.nonrepeating)
@@ -65,7 +66,7 @@ class TableRecord[T](tuple[T, ...]):
 
 
 class TableSelectionPredicate[T](Protocol):
-    def __call__(self, record: TableRecord[T], table: 'Table[T]') -> bool: ...
+    def __call__(self, record: TableRecord[T]) -> bool: ...
 
 
 @dataclass(slots=True)
@@ -137,6 +138,101 @@ class TableColumn[T]:
 
     def get_default(self, table: 'Table[T]') -> T | None:
         return self.generator.next_value(table) if self.generator else self.default
+    
+
+@dataclass(slots=True, frozen=True)
+class _RecordsSelector[T]:
+    table: 'Table[T]'
+    _predicate: TableSelectionPredicate[T]
+    _select_first: bool = False
+
+    def first(self) -> Self:
+        return replace(self, _select_first=True)
+    
+    async def fetch(self) -> list[TableRecord[T]] | TableRecord[T] | None:
+        result = [record async for record in self]
+        return (result[0] if result else None) if self._select_first else result
+
+    def __and__(self, other: Self) -> Self:
+        def op(record: TableRecord[T]) -> bool:
+            nonlocal self, other
+            return self._predicate(record) and other._predicate(record)
+        return replace(self, _predicate=op)
+    
+    def __or__(self, other: Self) -> Self:
+        def op(record: TableRecord[T]) -> bool:
+            nonlocal self, other
+            return self._predicate(record) or other._predicate(record)
+        return replace(self, _predicate=op)
+    
+    def __invert__(self) -> Self:
+        def op(record: TableRecord[T]) -> bool:
+            nonlocal self
+            return not self._predicate(record)
+        return replace(self, _predicate=op)
+    
+    async def __aiter__(self) -> AsyncIterator[TableRecord[T]]:
+        async for record in self.table.select(self._predicate):
+            yield record
+            if self._select_first:
+                break
+    
+    def __await__(self) -> Generator[Any, None, list[TableRecord[T]] |  TableRecord[T]]:
+        return self.fetch().__await__()
+
+
+@dataclass(slots=True, frozen=True)
+class _ConditionSelector[T]:
+    table: 'Table[T]'
+    column_name: str
+
+    def contained(self, container: Container[T]) -> _RecordsSelector[T]:
+        def op(record: TableRecord[T]) -> bool:
+            nonlocal self, container
+            return record[self.column_name] in container
+        return _RecordsSelector(self.table, op)
+
+    def __eq__(self, other: T) -> _RecordsSelector[T]:
+        def op(record: TableRecord[T]) -> bool:
+            nonlocal self, other
+            return record[self.column_name] == other
+        return _RecordsSelector(self.table, op)
+    
+    def __ne__(self, other: T) -> _RecordsSelector[T]:
+        def op(record: TableRecord[T]) -> bool:
+            nonlocal self, other
+            return record[self.column_name] != other
+        return _RecordsSelector(self.table, op)
+
+    def __lt__(self, other: T) -> _RecordsSelector[T]:
+        def op(record: TableRecord[T]) -> bool:
+            nonlocal self, other
+            return record[self.column_name] < other
+        return _RecordsSelector(self.table, op)
+    
+    def __le__(self, other: T) -> _RecordsSelector[T]:
+        def op(record: TableRecord[T]) -> bool:
+            nonlocal self, other
+            return record[self.column_name] <= other
+        return _RecordsSelector(self.table, op)
+    
+    def __gt__(self, other: T) -> _RecordsSelector[T]:
+        def op(record: TableRecord[T]) -> bool:
+            nonlocal self, other
+            return record[self.column_name] > other
+        return _RecordsSelector(self.table, op)
+    
+    def __ge__(self, other: T) -> _RecordsSelector[T]:
+        def op(record: TableRecord[T]) -> bool:
+            nonlocal self, other
+            return record[self.column_name] >= other
+        return _RecordsSelector(self.table, op)
+    
+    def __contains__(self, item) -> _RecordsSelector[T]:
+        def op(record: TableRecord[T]) -> bool:
+            nonlocal self, item
+            return item in record[self.column_name]
+        return _RecordsSelector(self.table, op)
 
 
 @dataclass(slots=True)
@@ -205,6 +301,9 @@ class Table[T](ABC):
     
     async def __aexit__(self, *args) -> None:
         await self._executor.__aexit__(*args)
+
+    def __getattr__(self, name: str) -> _ConditionSelector:
+        return _ConditionSelector(self, name)
     
 
 @dataclass(slots=True)
@@ -227,17 +326,17 @@ class MemoryTable[T](Table[T]):
                 yield record
         else:
             for record in self._records.copy():
-                if await self._executor(predicate, record, self):
+                if await self._executor(predicate, record):
                     yield record
     
     async def pop(self, predicate: TableSelectionPredicate[T] | None = None) -> AsyncIterator[TableRecord[T]]:
         if not predicate:
             for record in self._records.copy():
-                await self._executor(set.discard, self._records, record)
+                await self._executor(set.discard, self._records)
                 yield record
         else:
             for record in self._records.copy():
-                if await self._executor(predicate, record, self):
+                if await self._executor(predicate, record):
                     await self._executor(set.discard, self._records, record)
                     yield record
     
@@ -250,7 +349,7 @@ class MemoryTable[T](Table[T]):
                 yield new_record
         else:
             for record in self._records.copy():
-                if await self._executor(predicate, record, self):
+                if await self._executor(predicate, record):
                     new_record = await record.replace(**to_update)
                     await self._executor(set.discard, self._records, record)
                     await self._executor(set.add, self._records, new_record)
@@ -267,7 +366,7 @@ class SqlTable[T](Table[T], ABC):
         columns, generated_columns = [], []
         table_sql = await (await executor.execute(f'SELECT sql FROM sqlite_master WHERE type = "table" AND name = "{name}"')).fetchone()
         columns_data = await executor.execute(f'SELECT type, dflt_value FROM pragma_table_info("{name}")')
-        
+
         for column_sql in re_match(r'^CREATE TABLE\s+\w+\s*\((.*)\)$', table_sql[0], IGNORECASE).group(1).split(', '):
             typename, default = await anext(columns_data)
             if isinstance(default, str) and (match_ := search(r'["\'`](.*)["\'`]', default, DOTALL | MULTILINE)):
@@ -336,7 +435,7 @@ class SolidTable[T](SqlTable[T]):
                 yield await self._executor(self._record, *record_data)
         else:
             async for record_data in await self._executor.execute(f'SELECT * FROM {self.name}'):
-                if await self._executor(predicate, record := await self._executor(self._record, *record_data), self):
+                if await self._executor(predicate, record := await self._executor(self._record, *record_data)):
                     yield record
     
     async def pop(self, predicate: TableSelectionPredicate[T] | None = None) -> AsyncIterator[TableRecord[T]]:
@@ -345,7 +444,7 @@ class SolidTable[T](SqlTable[T]):
                 yield await self._executor(self._record, *record_data)
         else:
             async for record_data in await self._executor.execute(f'SELECT * FROM {self.name}'):
-                if await self._executor(predicate, record := await self._executor(self._record, *record_data), self):
+                if await self._executor(predicate, record := await self._executor(self._record, *record_data)):
                     await self._execute_where(f'DELETE FROM {self.name}', record)
                     yield record
     
@@ -356,7 +455,7 @@ class SolidTable[T](SqlTable[T]):
                 yield await self._executor(self._record, *record_data)
         else:
             async for record_data in await self._executor.execute(f'SELECT * FROM {self.name}'):
-                if await self._executor(predicate, record := await self._executor(self._record, *record_data), self):
+                if await self._executor(predicate, record := await self._executor(self._record, *record_data)):
                     await self._execute_where(sql, record, to_update.values())
                     yield record
 

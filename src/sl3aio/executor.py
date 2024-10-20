@@ -95,32 +95,25 @@ class ConnectionManager(FunctionExecutor):
     def database(self) -> str:
         return self._connection_properties['database']
     
-    def _get_connection(self) -> Connection:
-        if self._connection is None:
-            self._connection = connect(**self._connection_properties)
-        return self._connection
-    
-    async def _aget_connection(self) -> Connection:
-        return await self(ConnectionManager._get_connection, self)
-    
     async def execute(self, sql: str, parameters: Parameters = ()) -> 'CursorManager':
-        return CursorManager(self, await self(Connection.execute, await self._aget_connection(), sql, parameters))
+        return CursorManager(self, await self(Connection.execute, self._connection, sql, parameters))
     
     async def executemany(self, sql: str, parameters: Iterable[Parameters]) -> 'CursorManager':
-        return CursorManager(self, await self(Connection.executemany, await self._aget_connection(), sql, parameters))
+        return CursorManager(self, await self(Connection.executemany, self._connection, sql, parameters))
 
     async def executescript(self, sql_script: str) -> 'CursorManager':
-        return CursorManager(self, await self(Connection.executescript, await self._aget_connection(), sql_script))
+        return CursorManager(self, await self(Connection.executescript, self._connection, sql_script))
     
     async def commit(self) -> None:
-        await self(Connection.commit, await self._aget_connection())
+        await self(Connection.commit, self._connection)
 
     async def rollback(self) -> None:
-        await self(Connection.rollback, await self._aget_connection())
+        await self(Connection.rollback, self._connection)
     
     async def start(self) -> None:
         await super(ConnectionManager, self).start()
-        await self._aget_connection()
+        if self._connection is None:
+            self._connection = connect(**self._connection_properties)
 
     async def stop(self) -> None:
         await super(ConnectionManager, self).stop()
@@ -176,7 +169,7 @@ class CursorManager:
     async def fetchone(self) -> Any | None:
         return await anext(self, None)
 
-    async def __aiter__(self) -> AsyncGenerator[Any, None]:
+    async def __aiter__(self) -> AsyncGenerator[Any, Any | None]:
         while True:
             try:
                 yield await anext(self)

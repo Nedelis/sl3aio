@@ -61,10 +61,11 @@ class TestSQLTables(unittest.IsolatedAsyncioTestCase):
                     name='John Smith',
                     extra_data=extra_data
                 )
-            print(await table.select_one(lambda record, _: record.id == 3154135))
+            print(await ((table.id == 3154135) & (table.language == 'ru_ru')).first())
+            print(await table.select_one(lambda record: record.id == 3154135 and record.language == 'ru_ru'))
             self.assertEqual(
                 extra_data,
-                (await table.select_one(lambda record, _: record.id == 3154135)).extra_data
+                (await table.select_one(lambda record: record.id == 3154135)).extra_data
             )
             await table.delete()
 
