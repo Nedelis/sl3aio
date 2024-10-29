@@ -1,12 +1,13 @@
 import os
 import sys
+
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 import unittest
 from typing import Any, Dict
 from dataclasses import dataclass
 from sqlite3 import PARSE_DECLTYPES
-from sl3aio import SolidTable, TableColumnValueGenerator, Parser, BuiltinParser, ConnectionManager
+from sl3aio import SolidTable, TableColumnValueGenerator, Parser, BuiltinParser, ConnectionManager, EasyTable
 
 TEST_DB = './src/test/usersdata.db'
 
@@ -55,19 +56,18 @@ class TestSQLTables(unittest.IsolatedAsyncioTestCase):
         print(Parser.from_parsable(UserData), Parser.registry)
         print(Parser.get_by_typename('userdata'))
         async with ConnectionManager(TEST_DB, detect_types=PARSE_DECLTYPES) as conn:
-            async with await SolidTable.from_database('users', conn) as table:
-                await table.insert(
-                    id=3154135,
-                    name='John Smith',
-                    extra_data=extra_data
-                )
-            print(await ((table.id == 3154135) & (table.language == 'ru_ru')).first())
-            print(await table.select_one(lambda record: record.id == 3154135 and record.language == 'ru_ru'))
-            self.assertEqual(
-                extra_data,
-                (await table.select_one(lambda record: record.id == 3154135)).extra_data
-            )
-            await table.delete()
+            table = EasyTable(await SolidTable.from_database('users', conn))
+        await table.insert(
+            id=3154135,
+            name='John Smith',
+            extra_data=extra_data
+        )
+        print((await (table.name[0] == 'J').select_one()).extra_data)
+        self.assertEqual(
+            extra_data,
+            (await (table.name[0] == 'J').select_one()).extra_data
+        )
+        await table.delete()
 
     # async def test_column_value_generator(self):
     #     TableColumnValueGenerator(lambda _, prev: prev + 1, -1, 'id_increment').register()

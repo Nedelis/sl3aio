@@ -8,14 +8,22 @@ from collections.abc import AsyncGenerator, Callable, Iterable, Mapping
 from typing import Any, ClassVar, Self
 from .dataparser import DefaultDataType
 
-__all__ = ['Parameters', 'FunctionExecutor', 'ConnectionManager', 'CursorManager']
+__all__ = ['Parameters', 'Executor', 'ConsistentExecutor', 'ConnectionManager', 'CursorManager']
 
 type Parameters = Iterable[DefaultDataType] | Mapping[str, DefaultDataType]
 
 
 @dataclass(slots=True)
-class FunctionExecutor:
+class Executor:
     _loop: AbstractEventLoop = field(init=False, default_factory=get_running_loop)
+    _executor: ThreadPoolExecutor = field(init=False, default_factory=ThreadPoolExecutor)
+
+    def __call__[**P, R](self, func: Callable[P, R], *args: P.args, **kwargs: P.kwargs) -> Future[R]:
+        return self._loop.run_in_executor(self._executor, partial(func, *args, **kwargs))
+
+
+@dataclass(slots=True)
+class ConsistentExecutor(Executor):
     _executor: ThreadPoolExecutor = field(init=False, default_factory=partial(ThreadPoolExecutor, max_workers=1))
     _queue: Queue[tuple[Callable[[], Any], Future]] = field(init=False, default_factory=Queue)
     _worker_task: Task = field(init=False, default=None)
@@ -73,7 +81,7 @@ class FunctionExecutor:
 
 
 @dataclass(slots=True, init=False)
-class ConnectionManager(FunctionExecutor):
+class ConnectionManager(ConsistentExecutor):
     _instances: ClassVar[dict[str, Self]] = {}
     _connection_properties: dict[str, Any]
     _connection: Connection | None
