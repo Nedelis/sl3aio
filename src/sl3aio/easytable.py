@@ -64,6 +64,13 @@ class EasySelector[T]:
     async def update_one(self, table: Table[T], **to_update: T) -> TableRecord[T] | None:
         return await anext(self.updated(table, **to_update), None)
 
+    def append_selector(self, selector: Callable[[bool, Any, TableRecord[T]], tuple[bool, Any]]) -> Self:
+        def __selector(previous, record: TableRecord[T]) -> tuple[bool, Any]:
+            nonlocal self, selector
+            ok, obj = self._selector(previous, record)
+            return selector(ok, obj, record)
+        return replace(self, _selector=__selector)
+
     def pass_into[**P](self, func: Callable[Concatenate[Any, P], Any], *args: P.args, **kwargs: P.kwargs) -> Self:
         def __selector(previous, record: TableRecord[T]) -> tuple[bool, Any]:
             nonlocal self, func, args, kwargs

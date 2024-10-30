@@ -1,7 +1,7 @@
-from collections.abc import AsyncIterator, Callable, Awaitable, Container, Generator
-from dataclasses import dataclass, field, replace
+from collections.abc import AsyncIterator, Callable, Awaitable
+from dataclasses import dataclass, field
 from re import DOTALL, IGNORECASE, MULTILINE, match as re_match, search
-from typing import Any, ClassVar, Self, Protocol, Never
+from typing import ClassVar, Self, Protocol
 from inspect import iscoroutinefunction
 from abc import ABC, abstractmethod
 from .executor import *
@@ -14,10 +14,10 @@ __all__ = [
 
 
 class TableRecord[T](tuple[T, ...]):
-    __slots__: ClassVar[tuple[()]] = ()
-    table: ClassVar['Table'] = Never
-    nonrepeating: ClassVar[tuple[str, ...]] = Never
-    fields: ClassVar[tuple[str, ...]] = Never
+    __slots__ = ()
+    table: ClassVar['Table']
+    nonrepeating: ClassVar[tuple[str, ...]]
+    fields: ClassVar[tuple[str, ...]]
 
     @classmethod
     def make_subclass(cls, table: 'Table[T]', *columns: 'TableColumn[T]') -> type[Self]:

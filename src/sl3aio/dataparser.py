@@ -23,7 +23,7 @@ class Parser[T]:
     types: tuple[type[T], ...]
     typenames: tuple[str, ...]
     loads: Callable[[DefaultDataType], T] = field(repr=False)
-    dumps: Callable[[T], DefaultDataType] = field(repr=False)
+    dumps: Callable[[T], DefaultDataType | Parsable] = field(repr=False)
     register: InitVar[bool] = True
 
     @classmethod
