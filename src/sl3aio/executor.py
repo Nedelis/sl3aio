@@ -1,5 +1,5 @@
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from asyncio import AbstractEventLoop, Future, Queue, Task, get_running_loop, create_task
 from functools import partial
 from pathlib import Path
@@ -25,8 +25,8 @@ class Executor:
 @dataclass(slots=True)
 class ConsistentExecutor(Executor):
     _executor: ThreadPoolExecutor = field(init=False, default_factory=partial(ThreadPoolExecutor, max_workers=1))
-    _queue: Queue[tuple[Callable[[], Any], Future]] = field(init=False, default_factory=Queue)
-    _worker_task: Task = field(init=False, default=None)
+    _queue: Queue[tuple[Callable[[], Any], Future] | None] = field(init=False, default_factory=Queue)
+    _worker_task: Task | None = field(init=False, default=None)
     _refcount: int = field(init=False, default=0)
 
     @property
@@ -104,19 +104,19 @@ class ConnectionManager(ConsistentExecutor):
         return self._connection_properties['database']
     
     async def execute(self, sql: str, parameters: Parameters = ()) -> 'CursorManager':
-        return CursorManager(self, await self(Connection.execute, self._connection, sql, parameters))
+        return CursorManager(self, await self(self._connection.execute, sql, parameters))
     
     async def executemany(self, sql: str, parameters: Iterable[Parameters]) -> 'CursorManager':
-        return CursorManager(self, await self(Connection.executemany, self._connection, sql, parameters))
+        return CursorManager(self, await self(self._connection.executemany, sql, parameters))
 
     async def executescript(self, sql_script: str) -> 'CursorManager':
-        return CursorManager(self, await self(Connection.executescript, self._connection, sql_script))
+        return CursorManager(self, await self(self._connection.executescript, sql_script))
     
     async def commit(self) -> None:
-        await self(Connection.commit, self._connection)
+        await self(self._connection.commit)
 
     async def rollback(self) -> None:
-        await self(Connection.rollback, self._connection)
+        await self(self._connection.rollback)
     
     async def start(self) -> None:
         await super(ConnectionManager, self).start()
@@ -150,13 +150,13 @@ class CursorManager:
     _cursor: Cursor
     
     async def execute(self, sql: str, parameters: Parameters = ()) -> Self:
-        return CursorManager(self, await self.connection_manager(Cursor.execute, self._cursor, sql, parameters))
+        return replace(self, _cursor=await self.connection_manager(self._cursor.execute, sql, parameters))
     
     async def executemany(self, sql: str, parameters: Iterable[Parameters]) -> Self:
-        return CursorManager(self, await self.connection_manager(Cursor.executemany, self._cursor, sql, parameters))
+        return replace(self, _cursor=await self.connection_manager(self._cursor.executemany, sql, parameters))
 
     async def executescript(self, sql_script: str) -> Self:
-        return CursorManager(self, await self.connection_manager(Cursor.executescript, self._cursor, sql_script))
+        return replace(self, _cursor=await self.connection_manager(self._cursor.executescript, sql_script))
     
     async def fetch(self, start: int = 0, stop: int | None = None, step: int = 1) -> list:
         result = []

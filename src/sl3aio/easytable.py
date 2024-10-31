@@ -157,7 +157,7 @@ class EasySelector[T]:
     def __ge__(self, other: Any | Self) -> Self:
         return self._comparaison_operator(other, operator.ge)
     
-    def __contains__(self, item: Any | Self) -> bool:
+    def __contains__(self, item: Any | Self) -> Self:
         return self._comparaison_operator(item, operator.contains)
     
     def __add__(self, other: Any | Self) -> Self:
@@ -274,32 +274,32 @@ class EasySelector[T]:
     def __rxor__(self, other) -> Self:
         return self._rbinary_operator(other, operator.xor)
     
-    def _binary_operator(self, other: Any | Self, operator: Callable[[Any, Any], Any]) -> Self:
+    def _binary_operator(self, other: Any | Self, __operator: Callable[[Any, Any], Any]) -> Self:
         if isinstance(other, self.__class__):
             def __selector(previous, record: TableRecord[T]) -> tuple[bool, Any]:
-                nonlocal self, other, operator
+                nonlocal self, other, __operator
                 ok, obj = self._selector(previous, record)
                 if ok and (_other := other.apply(record))[0]:
-                    return True, operator(obj, _other[1])
+                    return True, __operator(obj, _other[1])
                 return False, obj
         else:
             def __selector(previous, record: TableRecord[T]) -> tuple[bool, Any]:
-                nonlocal self, other, operator
+                nonlocal self, other, __operator
                 ok, obj = self._selector(previous, record)
-                return (True, operator(obj, other)) if ok else (False, obj)
+                return (True, __operator(obj, other)) if ok else (False, obj)
         return replace(self, _selector=__selector)
     
-    def _rbinary_operator(self, other: Any | Self, operator: Callable[[Any, Any], Any]) -> Self:
-        def _operator(a, b):
-            nonlocal operator
-            return operator(b, a)
-        return self._binary_operator(other, _operator)
+    def _rbinary_operator(self, other: Any | Self, __operator: Callable[[Any, Any], Any]) -> Self:
+        def __roperator(a, b):
+            nonlocal __operator
+            return __operator(b, a)
+        return self._binary_operator(other, __roperator)
 
-    def _unary_operator(self, operator: Callable[[Any], Any]) -> Self:
+    def _unary_operator(self, __operator: Callable[[Any], Any]) -> Self:
         def __selector(previous, record: TableRecord[T]) -> tuple[bool, Any]:
-            nonlocal self, operator
+            nonlocal self, __operator
             ok, obj = self._selector(previous, record)
-            return (True, operator(obj)) if ok else (False, obj)
+            return (True, __operator(obj)) if ok else (False, obj)
         return replace(self, _selector=__selector)
     
     def _comparaison_operator(self, other: Any | Self, comparator: Callable[[Any, Any], bool]) -> Self:
@@ -307,9 +307,8 @@ class EasySelector[T]:
             def __selector(previous, record: TableRecord[T]) -> tuple[bool, Any]:
                 nonlocal self, other, comparator
                 ok, obj = self._selector(previous, record)
-                if ok and (_other := other.apply(record))[0] and comparator(obj, _other[1]):
-                    return True, True
-                return False, False
+                _other = other.apply(record)
+                return (True, True) if ok and _other[0] and comparator(obj, _other[1]) else (False, False)
         else:
             def __selector(previous, record: TableRecord[T]) -> tuple[bool, Any]:
                 nonlocal self, other, comparator
@@ -326,10 +325,9 @@ class EasyColumn[T]:
     nullable: bool = True
 
     def to_column(self, name: str, __type: type[T]) -> TableColumn[T]:
-        assert (parser := Parser.get_by_type(__type)), f'Invalid type {__type}!'
         return TableColumn(
             name,
-            parser.typenames[0],
+            parser.typenames[0] if (parser := Parser.get_by_type(__type)) else 'TEXT',
             *((None, self.default) if isinstance(self.default, TableColumnValueGenerator) else (self.default, None)),
             self.primary,
             self.unique,
@@ -375,7 +373,7 @@ class EasyTable[T]:
     
     async def contains(self, record: TableRecord[T]) -> bool:
         async with self.table:
-            return self.table.contains(record)
+            return await self.table.contains(record)
         
     async def insert(self, ignore_existing: bool = False, **values: T) -> TableRecord[T]:
         async with self.table:
