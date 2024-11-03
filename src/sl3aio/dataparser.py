@@ -1,78 +1,104 @@
-from dataclasses import dataclass, field, InitVar
+from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
 from json import loads, dumps
 from datetime import datetime, date, time
 from collections.abc import Callable, Iterable
-from typing import ClassVar, Self, final, Protocol
-from sqlite3 import register_adapter, register_converter
+from typing import ClassVar, Self, final
+from sqlite3 import adapters, converters, PrepareProtocol
 
-__all__ = ['DefaultDataType', 'Parser', 'Parsable', 'BuiltinParser']
+__all__ = ['DefaultDataType', 'Parser', 'Parsable', 'BuiltinParsers']
 
 type DefaultDataType = bytes | str | int | float | None
 
 
-class Parsable(Protocol):
+class Parsable(ABC):
     @classmethod
-    def from_data(cls, data: str) -> Self: ...
+    @abstractmethod
+    def from_data(cls, data: bytes) -> Self: ...
 
-    def to_data(self) -> 'DefaultDataType | Parsable': ...
+    @abstractmethod
+    def to_data(self) -> DefaultDataType | Self: ...
 
 
-@dataclass(slots=True, frozen=True)
+@dataclass(slots=True)
 class Parser[T]:
-    registry: ClassVar[set['Parser']] = set()
-    types: tuple[type[T], ...]
-    typenames: tuple[str, ...]
-    loads: Callable[[DefaultDataType], T] = field(repr=False)
+    instances: ClassVar[set[Self]] = set()
+    types: set[type[T]]
+    typenames: set[str]
+    loads: Callable[[bytes], T] = field(repr=False)
     dumps: Callable[[T], DefaultDataType | Parsable] = field(repr=False)
-    register: InitVar[bool] = True
 
     @classmethod
-    def from_parsable(cls, parsable: type[Parsable], typenames: Iterable[str] = (), register: bool = True) -> Self:
+    def from_parsable(cls, parsable: type[Parsable], typenames: Iterable[str] = ()) -> Self:
         return cls(
-            (parsable,),
-            tuple(typenames) or (parsable.__name__,),
+            {parsable},
+            set(map(str.upper, typenames)) or {parsable.__name__.upper()},
             parsable.from_data,
-            parsable.to_data,
-            register
+            parsable.to_data
         )
 
     @classmethod
     def get_by_type(cls, __type: T) -> Self | None:
-        return next((parser for parser in cls.registry if __type in parser.types), None)
+        return next((parser for parser in cls.instances if __type in parser.types), None)
     
     @classmethod
-    def get_by_typename(cls, typename: str, case_sensitive: bool = False) -> Self | None:
-        if case_sensitive:
-            return next((parser for parser in cls.registry if typename in parser.typenames), None)
-        typename = typename.lower()
-        for parser in cls.registry:
-            if typename in (ptypename.lower() for ptypename in parser.typenames):
-                return parser
+    def get_by_typename(cls, __typename: str) -> Self | None:
+        __typename = __typename.upper()
+        return next((parser for parser in cls.instances if __typename in parser.typenames), None)
 
-    def __post_init__(self, register: bool) -> None:
+    def __post_init__(self) -> None:
         assert self.types, 'Parser must have at least one type corresponding to it!'
         assert self.typenames, 'Parser must have at least one typename corresponding to it!'
-        Parser.registry.add(self)
-        if register:
-            for typename in self.typenames:
-                register_converter(typename, self.loads)
-            for type in self.types:
-                register_adapter(type, self.dumps)
+        self.instances.add(self)
 
-    def remove(self) -> None:
-        Parser.registry.discard(self)
-        for typename in self.typenames:
-            register_converter(typename, str)
-        for type in self.types:
-            register_adapter(type, str)
+    def register(self) -> Self:
+        for __typename in self.typenames:
+            converters[__typename] = self.loads
+        for __type in self.types:
+            adapters[(__type, PrepareProtocol)] = self.dumps
+        return self
+
+    def unregister(self) -> Self:
+        for __typename in self.typenames:
+            converters.pop(__typename, None)
+        for __type in self.types:
+            adapters.pop((__type, PrepareProtocol), None)
+        return self
+
+    def __hash__(self) -> int:
+        return hash((*self.typenames, *self.types))
 
 
 @final
-class BuiltinParser:
-    BLOB: ClassVar[Parser[bytes]] = Parser((bytes,), ('BLOB', 'BYTES'), bytes, bytes, False)
-    INTEGER: ClassVar[Parser[int]] = Parser((int,), ('INTEGER', 'INT'), int, int, False)
-    REAL: ClassVar[Parser[float]] = Parser((float,), ('REAL', 'FLOAT'), float, float, False)
-    TEXT: ClassVar[Parser[str]] = Parser((str,), ('TEXT', 'CHAR', 'VARCHAR'), str, str, False)
+class BuiltinParsers:
+    """Container for default and some useful parsers.  
+    **IMPORTANT!** Do not registrate `BLOB`, `INT`, `REAL` and `TEXT` parsers using their's `register()` method.  
+    
+    ### Default parsers
+    - `BLOB` - parser for binary data
+    - `INT` - parser for integers
+    - `REAL` - parser for floating-point numbers
+    - `TEXT` - parser for strings
+
+    ### Extra parsers
+    Before using these call `BuiltinParsers.init()` method.
+    - `BOOL` - parser for boolean values
+    - `SET` - parser for python sets
+    - `LIST` - parser for python lists
+    - `TUPLE` - parser for python tuples
+    - `DICT` - parser for python dictionaries
+    - `JSON` - parser for both dictionaries and lists
+    - `TIME` - parser for time in one of the iso 8601 formats
+    - `DATE` - parser for date in iso 8601 format
+    - `DATETIME` - parser for date and time in iso 8601 format
+    
+    ### See also
+    - `sl3aio.Parser` - class for creating custom parsers
+    """
+    BLOB: ClassVar[Parser[bytes]] = Parser({bytes}, {'BLOB', 'BYTES'}, bytes, bytes)
+    INT: ClassVar[Parser[int]] = Parser({int}, {'INTEGER', 'INT'}, int, int)
+    REAL: ClassVar[Parser[float]] = Parser({float}, {'REAL', 'FLOAT'}, float, float)
+    TEXT: ClassVar[Parser[str]] = Parser({str}, {'TEXT', 'CHAR', 'VARCHAR'}, str, str)
     BOOL: ClassVar[Parser[bool]]
     SET: ClassVar[Parser[set]]
     LIST: ClassVar[Parser[list]]
@@ -85,10 +111,11 @@ class BuiltinParser:
 
     @staticmethod
     def init() -> None:
-        BuiltinParser.BOOL = Parser((bool,), ('BOOL',), lambda data: t == b'true' if (t := data.lower()) in (b'true', b'false') else bool(data), str)
-        BuiltinParser.LIST = BuiltinParser.DICT = BuiltinParser.JSON = Parser((dict, list), ('JSON', 'LIST', 'DICT'), loads, lambda obj: dumps(obj, ensure_ascii=False))
-        BuiltinParser.SET = Parser((set,), ('SET',), lambda data: set(loads(data)), lambda obj: dumps(tuple(obj), ensure_ascii=False))
-        BuiltinParser.TUPLE = Parser((tuple,), ('TUPLE',), lambda data: tuple(loads(data)), BuiltinParser.JSON.dumps)
-        BuiltinParser.TIME = Parser((time,), ('TIME',), time.fromisoformat, time.isoformat)
-        BuiltinParser.DATE = Parser((date,), ('DATE',), date.fromisoformat, date.isoformat)
-        BuiltinParser.DATETIME = Parser((datetime,), ('DATETIME',), datetime.fromisoformat, datetime.isoformat)
+        """Creates and registrates all builtin parsers except `BLOB`, `INT`, `REAL` and `TEXT` (those were created automatically)."""
+        BuiltinParsers.BOOL = Parser({bool}, {'BOOL', 'BOOLEAN'}, lambda data: t == b'true' if (t := data.lower()) in (b'true', b'false') else bool(data), str).register()
+        BuiltinParsers.LIST = BuiltinParsers.DICT = BuiltinParsers.JSON = Parser({dict, list}, {'JSON', 'LIST', 'DICT'}, loads, lambda obj: dumps(obj, ensure_ascii=False)).register()
+        BuiltinParsers.SET = Parser({set}, {'SET'}, lambda data: set(loads(data)), lambda obj: dumps(tuple(obj), ensure_ascii=False)).register()
+        BuiltinParsers.TUPLE = Parser({tuple}, {'TUPLE'}, lambda data: tuple(loads(data)), BuiltinParsers.JSON.dumps).register()
+        BuiltinParsers.TIME = Parser({time}, {'TIME'}, time.fromisoformat, time.isoformat).register()
+        BuiltinParsers.DATE = Parser({date}, {'DATE'}, date.fromisoformat, date.isoformat).register()
+        BuiltinParsers.DATETIME = Parser({datetime}, {'DATETIME'}, datetime.fromisoformat, datetime.isoformat).register()

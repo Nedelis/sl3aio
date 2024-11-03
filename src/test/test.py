@@ -1,4 +1,6 @@
+from functools import partial
 import os
+from random import randint
 import sys
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -6,8 +8,8 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 import unittest
 from typing import Any, Dict
 from dataclasses import dataclass
-from sqlite3 import PARSE_DECLTYPES
-from sl3aio import SolidTable, TableColumnValueGenerator, Parser, BuiltinParser, ConnectionManager, EasyTable
+from sqlite3 import PARSE_DECLTYPES, adapters, converters, PrepareProtocol
+from sl3aio import SolidTable, TableColumnValueGenerator, Parser, BuiltinParsers, ConnectionManager, EasyTable
 
 TEST_DB = './src/test/usersdata.db'
 
@@ -32,7 +34,7 @@ class TestSQLTables(unittest.IsolatedAsyncioTestCase):
     #         await table.delete()
 
     async def test_parsable(self):
-        BuiltinParser.init()
+        BuiltinParsers.init()
         TableColumnValueGenerator(lambda _, prev: prev + 1, -1, 'id_increment').register()
 
         @dataclass(slots=True)
@@ -43,17 +45,18 @@ class TestSQLTables(unittest.IsolatedAsyncioTestCase):
 
             @classmethod
             def from_data(cls, value: str):
-                return cls(**BuiltinParser.DICT.loads(value))
+                return cls(**BuiltinParsers.DICT.loads(value))
             
             def to_data(self) -> str:
-                return BuiltinParser.DICT.dumps({
+                return BuiltinParsers.DICT.dumps({
                     'bio': self.bio,
                     'email': self.email,
                     'number': self.number
                 })
 
         extra_data = UserData('I\'m the best actor in the world!')
-        print(Parser.from_parsable(UserData), Parser.registry)
+        print(Parser.from_parsable(UserData).register(), Parser.instances)
+        print(converters)
         print(Parser.get_by_typename('userdata'))
         async with ConnectionManager(TEST_DB, detect_types=PARSE_DECLTYPES) as conn:
             table = EasyTable(await SolidTable.from_database('users', conn))
@@ -70,15 +73,15 @@ class TestSQLTables(unittest.IsolatedAsyncioTestCase):
         await table.delete()
 
     # async def test_column_value_generator(self):
-    #     TableColumnValueGenerator(lambda _, prev: prev + 1, -1, 'id_increment').register()
-    #     async with await SolidTable.from_database('users', TEST_DB) as table:
+    #     TableColumnValueGenerator('id_increment', partial(randint, 0, 2 ** 32)).register()
+    #     async with ConnectionManager(TEST_DB, detect_types=PARSE_DECLTYPES) as conn:
+    #         table = EasyTable(await SolidTable.from_database('users', conn))
     #         rec1 = await table.insert(name='Supersus')
     #         rec2 = await table.insert(name='Supersus2')
     #         print(rec1, rec2)
-    #         print([rec async for rec in table.select()])
     #         self.assertEqual(
-    #             0,
-    #             (await table.select_one(lambda record, _: record.id == 0)).id
+    #             1,
+    #             (await (table.id == 1).select_one()).id
     #         )
     #         await table.delete()
 

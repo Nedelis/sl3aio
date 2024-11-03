@@ -21,9 +21,9 @@ class EasySelector[T]:
 
     @property
     def predicate(self) -> TableSelectionPredicate[T]:
-        def __predicate(record: TableRecord[T]) -> bool:
+        async def __predicate(record: TableRecord[T]) -> bool:
             nonlocal self
-            return self.apply(record)[0]
+            return (await record.executor(self.apply, record))[0]
         return __predicate
     
     def pin_table(self, table: Table[T]) -> Self:
@@ -350,7 +350,7 @@ class EasyTable[T]:
     """
     __slots__ = 'table', '_columns'
     _columns: tuple[TableColumn[T], ...]
-    table: Table[T]
+    table: Table[T] | None
 
     def __init__(self, table: Table[T] | None = None) -> None:
         columns = []
@@ -384,36 +384,36 @@ class EasyTable[T]:
             async for record in self.table.insert_many(ignore_existing, *values):
                 yield record
         
-    async def select(self, predicate: TableSelectionPredicate[T] | EasySelector[T] | None = None) -> AsyncIterator[TableRecord[T]]:
+    async def select(self, predicate: TableSelectionPredicate[T] | None = None) -> AsyncIterator[TableRecord[T]]:
         async with self.table:
-            async for record in self.table.select(predicate.predicate if isinstance(predicate, EasySelector) else predicate):
+            async for record in self.table.select(predicate):
                 yield record
 
     async def select_one(self, predicate: TableSelectionPredicate[T] | EasySelector[T] | None = None) -> TableRecord[T] | None:
         return await anext(self.select(predicate), None)
     
-    async def pop(self, predicate: TableSelectionPredicate[T] | EasySelector[T] | None = None) -> AsyncIterator[TableRecord[T]]:
+    async def pop(self, predicate: TableSelectionPredicate[T] | None = None) -> AsyncIterator[TableRecord[T]]:
         async with self.table:
-            async for record in self.table.pop(predicate.predicate if isinstance(predicate, EasySelector) else predicate):
+            async for record in self.table.pop(predicate):
                 yield record
     
-    async def delete(self, predicate: TableSelectionPredicate[T] | EasySelector[T] | None = None) -> None:
+    async def delete(self, predicate: TableSelectionPredicate[T] | None = None) -> None:
         async for _ in self.pop(predicate):
             pass
 
-    async def delete_one(self, predicate: TableSelectionPredicate[T] | EasySelector[T] | None = None) -> TableRecord[T] | None:
+    async def delete_one(self, predicate: TableSelectionPredicate[T] | None = None) -> TableRecord[T] | None:
         return await anext(self.pop(predicate), None)
     
-    async def updated(self, predicate: TableSelectionPredicate[T] | EasySelector[T] | None = None, **to_update: T) -> AsyncIterator[TableRecord[T]]:
+    async def updated(self, predicate: TableSelectionPredicate[T] | None = None, **to_update: T) -> AsyncIterator[TableRecord[T]]:
         async with self.table:
-            async for record in self.table.updated(predicate.predicate if isinstance(predicate, EasySelector) else predicate, **to_update):
+            async for record in self.table.updated(predicate, **to_update):
                 yield record
 
-    async def update(self, predicate: TableSelectionPredicate[T] | EasySelector[T] | None = None, **to_update: T) -> None:
+    async def update(self, predicate: TableSelectionPredicate[T] | None = None, **to_update: T) -> None:
         async for _ in self.updated(predicate, **to_update):
             pass
 
-    async def update_one(self, predicate: TableSelectionPredicate[T] | EasySelector[T] | None = None, **to_update: T) -> TableRecord[T] | None:
+    async def update_one(self, predicate: TableSelectionPredicate[T] | None = None, **to_update: T) -> TableRecord[T] | None:
         return await anext(self.updated(predicate, **to_update), None)
 
     def __getattr__(self, name: str) -> EasySelector[T]:

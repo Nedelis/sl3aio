@@ -4,13 +4,13 @@ from asyncio import AbstractEventLoop, Future, Queue, Task, get_running_loop, cr
 from functools import partial
 from pathlib import Path
 from sqlite3 import Cursor, connect, Connection
-from collections.abc import AsyncGenerator, Callable, Iterable, Mapping
+from collections.abc import AsyncGenerator, Callable, Iterable, Mapping, Sequence
 from typing import Any, ClassVar, Self
 from .dataparser import DefaultDataType
 
 __all__ = ['Parameters', 'Executor', 'ConsistentExecutor', 'ConnectionManager', 'CursorManager']
 
-type Parameters = Iterable[DefaultDataType] | Mapping[str, DefaultDataType]
+type Parameters = Sequence[DefaultDataType] | Mapping[str, DefaultDataType]
 
 
 @dataclass(slots=True)
@@ -25,7 +25,7 @@ class Executor:
 @dataclass(slots=True)
 class ConsistentExecutor(Executor):
     _executor: ThreadPoolExecutor = field(init=False, default_factory=partial(ThreadPoolExecutor, max_workers=1))
-    _queue: Queue[tuple[Callable[[], Any], Future] | None] = field(init=False, default_factory=Queue)
+    _queue: Queue[tuple[Callable[[], Any], Future]] = field(init=False, default_factory=Queue)
     _worker_task: Task | None = field(init=False, default=None)
     _refcount: int = field(init=False, default=0)
 
@@ -36,10 +36,7 @@ class ConsistentExecutor(Executor):
     async def _worker(self) -> None:
         while True:
             task = await self._queue.get()
-            if task is None:
-                self._queue.task_done()
-                break
-            elif task[1].done():
+            if task[1].done():
                 self._queue.task_done()
                 continue
             try:
@@ -48,7 +45,7 @@ class ConsistentExecutor(Executor):
                 task[1].set_exception(e)
             finally:
                 self._queue.task_done()
-    
+
     async def start(self) -> None:
         self._refcount += 1
         if self._worker_task is None:
@@ -57,14 +54,11 @@ class ConsistentExecutor(Executor):
     async def stop(self) -> None:
         if self._refcount == 0:
             return
-        elif self._refcount != 1:
-            self._refcount -= 1
-        else:
-            self._queue.put_nowait(None)
+        elif self._refcount == 1:
             await self._queue.join()
             self._worker_task.cancel()
             self._worker_task = None
-            self._refcount = 0
+        self._refcount -= 1
 
     def __call__[**P, R](self, func: Callable[P, R], *args: P.args, **kwargs: P.kwargs) -> Future[R]:
         self._queue.put_nowait((partial(func, *args, **kwargs), result := self._loop.create_future()))
