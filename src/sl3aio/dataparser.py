@@ -7,10 +7,34 @@ from operator import call
 from typing import ClassVar, Self, final
 from sqlite3 import adapters, converters, PrepareProtocol
 
-__all__ = ['DefaultDataType', 'Parser', 'Parsable', 'BuiltinParsers']
+__all__ = ['DefaultDataType', 'allowed_types', 'allowed_typenames', 'Parser', 'Parsable', 'BuiltinParsers']
 
 type DefaultDataType = bytes | str | int | float | None
-"""TypeAlias : types that are supported by sqlite3 natively."""
+""":class:`TypeAlias`: types that are supported by sqlite3 natively."""
+
+
+def allowed_types() -> set[type]:
+    """List types that can be written into database.
+    
+    Returns
+    -------
+    :obj:`set[type]`: set of writable types
+    """
+    return {bytes, str, int, float, None, *(k[0] for k in adapters)}
+
+
+def allowed_typenames() -> set[str]:
+    """List names that can be used as column type in database.
+
+    .. note::
+        For **default** data types, this list includes only their affinities. So there are no
+        such typenames as `DOUBLE`, `TINYINT`, `VARCHAR(...)` and etc. in the result set.
+    
+    Returns
+    -------
+    :obj:`set[str]`: set of allowed columns types
+    """
+    return {'BLOB', 'TEXT', 'INTEGER', 'REAL', 'NUMERIC', *converters}
 
 
 class Parsable(ABC):
@@ -19,20 +43,37 @@ class Parsable(ABC):
     Methods
     -------
     from_data(data)
-        Parses the data from bytes and returns an instance of the class.
+        Constructs self from binary data.
     to_data()
-        Converts instance of the class to ``DefaultDataType`` or another ``Parsable`` object.
+        Converts self to any instance of the allowed type (listed by `allowed_types()` method).
     
     See Also
     --------
-    Parser : Class for creating custom parsers.
+    :obj:`Parser`: Class for creating custom parsers.
     """
     @classmethod
     @abstractmethod
-    def from_data(cls, data: bytes) -> Self: ...
+    def from_data(cls, data: bytes) -> Self:
+        """Create an instance from a binary data.
+        
+        Parameters
+        ----------
+        data : bytes
+            Incoming data from the sqlite database.
+
+        Returns
+        -------
+        :obj:`Parsable`: instance of the parsable class.
+        """
 
     @abstractmethod
-    def to_data(self) -> DefaultDataType | Self: ...
+    def to_data(self) -> 'DefaultDataType | Parsable':
+        """Convert self to the object that is writable by sqlite.
+        
+        Returns
+        -------
+        :obj:`DefaultDataType | Parsable`: object that can be written into sqlite database.
+        """
 
 
 @dataclass(slots=True)
@@ -45,7 +86,7 @@ class Parser[T]:
     Attributes
     ----------
     instances : set[Parsable]
-        Class level container for all of the parsers that were created.
+        Container for all of the parsers that were created.
     types : set[type[T]]
         Set of types corresponding to the parser.
     typenames : set[str]
@@ -53,7 +94,7 @@ class Parser[T]:
     loads : Callable[[bytes], T]
         Method to parse a data from bytes.
     dumps : Callable[[T], DefaultDataType | Parsable]
-        Method to convert an object to the ``DefaultDataType`` or ``Parsable`` object.
+        Method to convert an object to the `DefaultDataType` or `Parsable` object.
     
     Methods
     -------
@@ -110,12 +151,6 @@ class Parser[T]:
 class BuiltinParsers:
     """Container for default and some extra parsers.
 
-    Notes
-    -----
-    Do not registrate `BLOB`, `INT`, `REAL` and `TEXT` parsers using their's `register()` method.  
-    Before using `BOOL`, `SET`, `LIST`, `TUPLE`, `DICT`, `JSON`, `TIME`, `DATE` and `DATETIME` parsers,
-    you must call ``init()`` method.
-    
     Attributes
     ----------
     BLOB : Parser[bytes]
@@ -139,11 +174,19 @@ class BuiltinParsers:
     JSON : Parser[dict | list]
         Parser for both python dictionaries and lists (AKA JSON objects).
     TIME : Parser[time]
-        Parser for time in one of the iso 8601 formats.
+        Parser for time in one of the `iso 8601 <https://en.wikipedia.org/wiki/ISO_8601>`_ formats.
     DATE : Parser[date]
-        Parser for date in iso 8601 format.
+        Parser for date in `iso 8601 <https://en.wikipedia.org/wiki/ISO_8601>`_ format.
     DATETIME : Parser[datetime]
-        Parser for date and time in iso 8601 format.
+        Parser for date and time in `iso 8601 <https://en.wikipedia.org/wiki/ISO_8601>`_ format.
+
+    .. attention::
+        Do not registrate `BLOB`, `INT`, `REAL` and `TEXT` parsers using
+        their's ``register()`` method!
+
+    .. important::
+        Before using `BOOL`, `SET`, `LIST`, `TUPLE`, `DICT`, `JSON`, `TIME`, `DATE` and
+        `DATETIME` parsers, you must call `BuiltinParsers.init()` method.
 
     Methods
     -------
@@ -152,8 +195,8 @@ class BuiltinParsers:
     
     See Also
     --------
-    Parser : Class for creating custom parsers.
-    Parsable : Base class for custom parsable objects.
+    :class:`Parser`: Class for creating custom parsers.
+    :class:`Parsable`: Base class for custom parsable objects.
     """
     BLOB: ClassVar[Parser[bytes]] = Parser({bytes}, {'BLOB', 'BYTES'}, bytes, bytes)
     INT: ClassVar[Parser[int]] = Parser({int}, {'INTEGER', 'INT'}, int, int)

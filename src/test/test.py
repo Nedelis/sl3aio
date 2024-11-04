@@ -9,7 +9,7 @@ import unittest
 from typing import Any, Dict
 from dataclasses import dataclass
 from sqlite3 import PARSE_DECLTYPES, adapters, converters, PrepareProtocol
-from sl3aio import SolidTable, TableColumnValueGenerator, Parser, BuiltinParsers, ConnectionManager, EasyTable
+from sl3aio import SolidTable, TableColumnValueGenerator, Parser, BuiltinParsers, ConnectionManager, EasyTable, allowed_typenames
 
 TEST_DB = './src/test/usersdata.db'
 
@@ -56,7 +56,7 @@ class TestSQLTables(unittest.IsolatedAsyncioTestCase):
 
         extra_data = UserData('I\'m the best actor in the world!')
         print(Parser.from_parsable(UserData).register(), Parser.instances)
-        print(converters)
+        print(allowed_typenames())
         print(Parser.get_by_typename('userdata'))
         async with ConnectionManager(TEST_DB, detect_types=PARSE_DECLTYPES) as conn:
             table = EasyTable(await SolidTable.from_database('users', conn))
