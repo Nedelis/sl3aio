@@ -3,15 +3,30 @@ from dataclasses import dataclass, field
 from json import loads, dumps
 from datetime import datetime, date, time
 from collections.abc import Callable, Iterable
+from operator import call
 from typing import ClassVar, Self, final
 from sqlite3 import adapters, converters, PrepareProtocol
 
 __all__ = ['DefaultDataType', 'Parser', 'Parsable', 'BuiltinParsers']
 
 type DefaultDataType = bytes | str | int | float | None
+"""TypeAlias : types that are supported by sqlite3 natively."""
 
 
 class Parsable(ABC):
+    """Base class for custom parsable objects.
+
+    Methods
+    -------
+    from_data(data)
+        Parses the data from bytes and returns an instance of the class.
+    to_data()
+        Converts instance of the class to ``DefaultDataType`` or another ``Parsable`` object.
+    
+    See Also
+    --------
+    Parser : Class for creating custom parsers.
+    """
     @classmethod
     @abstractmethod
     def from_data(cls, data: bytes) -> Self: ...
@@ -22,6 +37,27 @@ class Parsable(ABC):
 
 @dataclass(slots=True)
 class Parser[T]:
+    """Class for creating custom parsers.
+    
+    Automates the registration of converters and adapters in sqlite3. Provides
+    convinient access to the already registered parsers.
+
+    Attributes
+    ----------
+    instances : set[Parsable]
+        Class level container for all of the parsers that were created.
+    types : set[type[T]]
+        Set of types corresponding to the parser.
+    typenames : set[str]
+        Set of names corresponding to the parser.
+    loads : Callable[[bytes], T]
+        Method to parse a data from bytes.
+    dumps : Callable[[T], DefaultDataType | Parsable]
+        Method to convert an object to the ``DefaultDataType`` or ``Parsable`` object.
+    
+    Methods
+    -------
+    """
     instances: ClassVar[set[Self]] = set()
     types: set[type[T]]
     typenames: set[str]
@@ -69,31 +105,55 @@ class Parser[T]:
         return hash((*self.typenames, *self.types))
 
 
+@call
 @final
 class BuiltinParsers:
-    """Container for default and some useful parsers.  
-    **IMPORTANT!** Do not registrate `BLOB`, `INT`, `REAL` and `TEXT` parsers using their's `register()` method.  
-    
-    ### Default parsers
-    - `BLOB` - parser for binary data
-    - `INT` - parser for integers
-    - `REAL` - parser for floating-point numbers
-    - `TEXT` - parser for strings
+    """Container for default and some extra parsers.
 
-    ### Extra parsers
-    Before using these call `BuiltinParsers.init()` method.
-    - `BOOL` - parser for boolean values
-    - `SET` - parser for python sets
-    - `LIST` - parser for python lists
-    - `TUPLE` - parser for python tuples
-    - `DICT` - parser for python dictionaries
-    - `JSON` - parser for both dictionaries and lists
-    - `TIME` - parser for time in one of the iso 8601 formats
-    - `DATE` - parser for date in iso 8601 format
-    - `DATETIME` - parser for date and time in iso 8601 format
+    Notes
+    -----
+    Do not registrate `BLOB`, `INT`, `REAL` and `TEXT` parsers using their's `register()` method.  
+    Before using `BOOL`, `SET`, `LIST`, `TUPLE`, `DICT`, `JSON`, `TIME`, `DATE` and `DATETIME` parsers,
+    you must call ``init()`` method.
     
-    ### See also
-    - `sl3aio.Parser` - class for creating custom parsers
+    Attributes
+    ----------
+    BLOB : Parser[bytes]
+        Parser for binary data.
+    INT : Parser[int]
+        Parser for integers.
+    REAL : Parser[float]
+        Parser for floating-point and real numbers.
+    TEXT : Parser[str]
+        Parser for strings.
+    BOOL : Parser[bool]
+        Parser for boolean values.
+    SET : Parser[set]
+        Parser for python sets.
+    LIST : Parser[list]
+        Parser for python lists.
+    TUPLE : Parser[tuple]
+        Parser for python tuples.
+    DICT : Parser[dict]
+        Parser for python dictionaries.
+    JSON : Parser[dict | list]
+        Parser for both python dictionaries and lists (AKA JSON objects).
+    TIME : Parser[time]
+        Parser for time in one of the iso 8601 formats.
+    DATE : Parser[date]
+        Parser for date in iso 8601 format.
+    DATETIME : Parser[datetime]
+        Parser for date and time in iso 8601 format.
+
+    Methods
+    -------
+    init()
+        Initializes extra parsers.
+    
+    See Also
+    --------
+    Parser : Class for creating custom parsers.
+    Parsable : Base class for custom parsable objects.
     """
     BLOB: ClassVar[Parser[bytes]] = Parser({bytes}, {'BLOB', 'BYTES'}, bytes, bytes)
     INT: ClassVar[Parser[int]] = Parser({int}, {'INTEGER', 'INT'}, int, int)
