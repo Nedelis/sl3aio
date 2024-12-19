@@ -1,14 +1,14 @@
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass, field, replace
+from dataclasses import InitVar, dataclass, field, replace
 from asyncio import AbstractEventLoop, Future, Queue, Task, get_running_loop, create_task
 from functools import partial
 from pathlib import Path
 from sqlite3 import Cursor, connect, Connection
 from collections.abc import AsyncGenerator, Callable, Iterable, Mapping, Sequence
-from typing import Any, ClassVar, Self
+from typing import Any, ClassVar, Literal, Self
 from .dataparser import DefaultDataType
 
-__all__ = ['Parameters', 'Executor', 'ConsistentExecutor', 'ConnectionManager', 'CursorManager']
+__all__ = ['Parameters', 'Executor', 'ConsistentExecutor', 'Connector', 'ConnectionManager', 'CursorManager']
 
 type Parameters = Sequence[DefaultDataType] | Mapping[str, DefaultDataType]
 
@@ -46,19 +46,22 @@ class ConsistentExecutor(Executor):
             finally:
                 self._queue.task_done()
 
-    async def start(self) -> None:
+    async def start(self) -> bool:
         self._refcount += 1
         if self._worker_task is None:
             self._worker_task = create_task(self._worker())
+            return True
+        return False
 
-    async def stop(self) -> None:
-        if self._refcount == 0:
-            return
-        elif self._refcount == 1:
-            await self._queue.join()
-            self._worker_task.cancel()
-            self._worker_task = None
-        self._refcount -= 1
+    async def stop(self) -> bool:
+        if self._refcount > 0:
+            self._refcount -= 1
+            if self._refcount == 0:
+                await self._queue.join()
+                self._worker_task.cancel()
+                self._worker_task = None
+                return True
+        return False
 
     def __call__[**P, R](self, func: Callable[P, R], *args: P.args, **kwargs: P.kwargs) -> Future[R]:
         self._queue.put_nowait((partial(func, *args, **kwargs), result := self._loop.create_future()))
@@ -74,18 +77,64 @@ class ConsistentExecutor(Executor):
             raise args[1]
 
 
+@dataclass(slots=True)
+class Connector:
+    database: str | bytes | Path
+    timeout: float = 5.0
+    detect_types: int = 0
+    isolation_level: Literal['DEFERRED', 'EXCLUSIVE', 'IMMEDIATE'] | None = 'DEFERRED'
+    check_same_thread: bool = False
+    factory: type | None = None
+    cached_statements: int = 128
+    uri: bool = False
+    autocommit: bool = False
+
+    def __post_init__(self) -> None:
+        if isinstance(self.database, str):
+            self.database = Path(self.database)
+        elif isinstance(self.database, (bytes, bytearray)):
+            self.database = Path(self.database.decode())
+        elif isinstance(self.database, memoryview):
+            self.database = Path(self.database.tobytes().decode())
+        self.database = self.database.resolve()
+        self.database.touch()
+    
+    def __call__(self) -> Connection:
+        if self.factory is None:
+            return connect(
+                database=self.database,
+                timeout=self.timeout,
+                detect_types=self.detect_types,
+                isolation_level=self.isolation_level,
+                check_same_thread=self.check_same_thread,
+                cached_statements=self.cached_statements,
+                uri=self.uri,
+                autocommit=self.autocommit
+            )
+        return connect(
+            database=self.database,
+            timeout=self.timeout,
+            detect_types=self.detect_types,
+            isolation_level=self.isolation_level,
+            check_same_thread=self.check_same_thread,
+            factory=self.factory,
+            cached_statements=self.cached_statements,
+            uri=self.uri,
+            autocommit=self.autocommit
+        )
+
+
 @dataclass(slots=True, init=False)
 class ConnectionManager(ConsistentExecutor):
     _instances: ClassVar[dict[str, Self]] = {}
-    _connection_properties: dict[str, Any]
+    _connector: Connector
     _connection: Connection | None
 
-    def __new__(cls, database: str | Path, **connection_properties) -> Self:
-        database = str((database if isinstance(database, Path) else Path(database)).resolve())
-        if database in cls._instances:
+    def __new__(cls, connector: Connector) -> Self:
+        if (database := str(connector.database)) in cls._instances:
             return cls._instances[database]
         super(ConnectionManager, obj := super(ConnectionManager, cls).__new__(cls)).__init__()
-        obj._connection_properties = connection_properties | {'database': database, 'check_same_thread': False}
+        obj._connector = replace(connector, check_same_thread=False)
         obj._connection = None
         cls._instances[database] = obj
         return obj
@@ -94,8 +143,12 @@ class ConnectionManager(ConsistentExecutor):
         pass
 
     @property
+    def connector(self) -> Connector:
+        return replace(self._connector)
+
+    @property
     def database(self) -> str:
-        return self._connection_properties['database']
+        return self._connector.database
     
     async def execute(self, sql: str, parameters: Parameters = ()) -> 'CursorManager':
         return CursorManager(self, await self(self._connection.execute, sql, parameters))
@@ -113,27 +166,25 @@ class ConnectionManager(ConsistentExecutor):
         await self(self._connection.rollback)
     
     async def start(self) -> None:
-        await super(ConnectionManager, self).start()
-        if self._connection is None:
-            self._connection = connect(**self._connection_properties)
+        if await super(ConnectionManager, self).start():
+            self._connection = self._connector()
 
     async def stop(self) -> None:
-        await super(ConnectionManager, self).stop()
-        if self._refcount == 0 and self._connection is not None:
+        if await super(ConnectionManager, self).stop():
             self._connection.commit()
             self._connection.close()
             self._connection = None
-    
+
     async def remove(self) -> None:
         await self.stop()
         self._instances.pop(self.database)
 
-    async def set_connection_properties(self, **connection_properties) -> None:
+    async def set_connector(self, connector: Connector) -> None:
         running = self._connection is not None
         await self.stop()
-        if 'database' in connection_properties:
+        if connector.database != self._connector.database:
             await self.remove()
-        self._connection_properties.update(connection_properties | {'check_same_thread': False})
+        self._connector = replace(connector, check_same_thread=False)
         if running:
             await self.start()
 
