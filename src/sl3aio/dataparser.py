@@ -1,3 +1,11 @@
+"""Module that implements necessary functionality for loading and saving data into database.
+
+The module includes:
+- :class:`DefaultDataType`: alias for types that are supported by sqlite3 natively.
+- :class:`Parser`: abstract base class for parsers.
+- :class:`Parsable`: interface for classes that can be parsed from and to database.
+- :class:`BuiltinParsers`: predefined parsers for built-in types.
+"""
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from json import loads, dumps
@@ -49,7 +57,7 @@ class Parsable(ABC):
     
     See Also
     --------
-    :obj:`Parser`: Class for creating custom parsers.
+    :class:`Parser`: Class for creating custom parsers.
     """
     @classmethod
     @abstractmethod
@@ -88,9 +96,9 @@ class Parser[T]:
     instances : set[Parsable]
         Container for all of the parsers that were created.
     types : set[type[T]]
-        Set of types corresponding to the parser.
+        Set of types corresponding to the parser. Must be at least one type in this set!
     typenames : set[str]
-        Set of names corresponding to the parser.
+        Set of names corresponding to the parser. Must be at least one type name in this set!
     loads : Callable[[bytes], T]
         Method to parse a data from bytes.
     dumps : Callable[[T], DefaultDataType | Parsable]
@@ -98,37 +106,102 @@ class Parser[T]:
     
     Methods
     -------
+    from_parsable
+        Constructs a new instance from a parsable object and optional typenames.
+    get_by_type
+        Find an instance that supports the given type.
+    get_by_typename
+        Find an instance that supports the given type name.
+    register
+        Register converters and adapters in sqlite3.
+    unregister
+        Unregister converters and adapters in sqlite3.
+
+    See Also
+    --------
+    :class:`Parsable`: Base class for custom parsable objects.
+    :class:`BuiltinParsers`: Useful builtin data parsers.
     """
     instances: ClassVar[set[Self]] = set()
     types: set[type[T]]
-    typenames: set[str]
+    _typenames: set[str]
     loads: Callable[[bytes], T] = field(repr=False)
     dumps: Callable[[T], DefaultDataType | Parsable] = field(repr=False)
 
+    @property
+    def typenames(self) -> set[str]:
+        return self._typenames
+    
+    @typenames.setter
+    def typenames(self, typenames: Iterable[str]) -> None:
+        self._typenames = set(map(str.upper, typenames))
+
     @classmethod
     def from_parsable(cls, parsable: type[Parsable], typenames: Iterable[str] = ()) -> Self:
+        """Construct a new instance from a parsable object and optional typenames.
+        
+        Parameters
+        ----------
+        parsable : type[Parsable]
+            Object that can be loaded and dumped using its own converters. See :class:`Parsable`.
+        typenames : Iterable[str] = ()
+            Optional typenames. If not provided name of the class will be used instead.
+
+        Returns
+        -------
+        :obj:`Parser`: New instance of the parser.
+        """
         return cls(
             {parsable},
-            set(map(str.upper, typenames)) or {parsable.__name__.upper()},
+            set(typenames) or {parsable.__name__},
             parsable.from_data,
             parsable.to_data
         )
 
     @classmethod
     def get_by_type(cls, __type: T) -> Self | None:
+        """Get an instance of a parser from its registry by the type it supports.
+        
+        Parameters
+        ----------
+        __type : T
+            Type that must support parser.
+
+        Returns
+        -------
+        :obj:`Parser`: Instance of the parser or `None` if no parser corresponding to the given type was found.
+        """
         return next((parser for parser in cls.instances if __type in parser.types), None)
     
     @classmethod
     def get_by_typename(cls, __typename: str) -> Self | None:
+        """Get an instance of a parser from its registry by the typename of type which it supports.
+        
+        Parameters
+        ----------
+        __typename : str
+            Name of the type that must support parser.
+        
+        Returns
+        -------
+        :obj:`Parser`: Instance of the parser or `None` if no parser corresponding to the given typename was found.
+        """
         __typename = __typename.upper()
         return next((parser for parser in cls.instances if __typename in parser.typenames), None)
 
     def __post_init__(self) -> None:
         assert self.types, 'Parser must have at least one type corresponding to it!'
-        assert self.typenames, 'Parser must have at least one typename corresponding to it!'
+        assert self._typenames, 'Parser must have at least one typename corresponding to it!'
+        self._typenames = set(map(str.upper, self._typenames))
         self.instances.add(self)
 
     def register(self) -> Self:
+        """Register converters and adapters in sqlite3.
+        
+        Returns
+        -------
+        :obj:`Parser`: Self for chaining.
+        """
         for __typename in self.typenames:
             converters[__typename] = self.loads
         for __type in self.types:
@@ -136,6 +209,12 @@ class Parser[T]:
         return self
 
     def unregister(self) -> Self:
+        """Unregister converters and adapters in sqlite3.
+        
+        Returns
+        -------
+        :obj:`Parser`: Self for chaining.
+        """
         for __typename in self.typenames:
             converters.pop(__typename, None)
         for __type in self.types:
