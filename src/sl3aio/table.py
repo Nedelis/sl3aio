@@ -1,7 +1,6 @@
 from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass, field
 from re import DOTALL, IGNORECASE, MULTILINE, match as re_match, compile, Pattern
-from types import EllipsisType
 from typing import ClassVar, Self, Protocol
 from abc import ABC, abstractmethod
 from .executor import *
@@ -74,26 +73,22 @@ class TableSelectionPredicate[T](Protocol):
     async def __call__(self, record: TableRecord[T]) -> bool: ...
 
 
+# FIXME: This must be asynchronous.
 @dataclass(slots=True)
 class TableColumnValueGenerator[T]:
     _instances: ClassVar[dict[str, Self]] = {}
     name: str
-    generator: Callable[[T], T] | Callable[[], T]
-    previous: T | EllipsisType = ...
+    generator: Callable[[], T]
 
     @classmethod
-    def from_function(cls, name: str, previous: T | EllipsisType = ...) -> Callable[[Callable[[T], T] | Callable[[], T]], Self]:
-        def decorator(func: Callable[[T], T] | Callable[[], T]) -> Self:
-            return cls(name, func, previous)
+    def from_function(cls, name: str) -> Callable[[Callable[[], T]], Self]:
+        def decorator(func: Callable[[], T]) -> Self:
+            return cls(name, func)
         return decorator
 
     @classmethod
     def get_by_name(cls, name: str) -> Self | None:
         return cls._instances[name].copy() if name in cls._instances else None
-
-    @property
-    def uses_previous(self) -> bool:
-        return not isinstance(self.previous, EllipsisType)
     
     def copy(self) -> Self:
         return type(self)(name=self.name, generator=self.generator, previous=self.previous)
@@ -107,9 +102,6 @@ class TableColumnValueGenerator[T]:
         return self
     
     def __next__(self) -> T:
-        if self.uses_previous:
-            self.previous = self.generator(self.previous)
-            return self.previous
         return self.generator()
 
 

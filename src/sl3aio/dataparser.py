@@ -1,10 +1,62 @@
-"""Module that implements necessary functionality for loading and saving data into database.
+"""
+sl3aio.dataparser
+=================
 
-The module includes:
-- :class:`DefaultDataType`: alias for types that are supported by sqlite3 natively.
-- :class:`Parser`: abstract base class for parsers.
-- :class:`Parsable`: interface for classes that can be parsed from and to database.
-- :class:`BuiltinParsers`: predefined parsers for built-in types.
+This module provides a flexible and extensible system for parsing and converting data 
+between Python objects and SQLite database representations. It offers tools for 
+creating custom parsers, handling various data types, and managing the conversion 
+process for database operations.
+
+Key Components:
+---------------
+1. DefaultDataType: Type alias for basic types natively supported by SQLite.
+2. Parsable: Abstract base class for creating custom parsable objects.
+3. Parser: Class for creating and managing custom data parsers.
+4. BuiltinParsers: Container for default and additional pre-defined parsers.
+
+Features:
+---------
+- Support for native SQLite data types and custom Python objects
+- Extensible parser system for handling complex data types
+- Automatic registration and management of SQLite adapters and converters
+- Built-in parsers for common Python types (e.g., bool, set, list, dict, datetime)
+- Utility functions for querying allowed types and type names
+
+Usage:
+------
+This module is designed to be used in conjunction with the sl3aio library for SQLite 
+database operations. It provides the necessary tools to seamlessly convert between 
+Python objects and their SQLite representations.
+
+Example:
+--------
+>>> from sl3aio.dataparser import Parser, Parsable
+
+>>> class CustomObject(Parsable):
+...     def __init__(self, value):
+...         self.value = value
+...     
+...     @classmethod
+...     def from_data(cls, data: bytes):
+...         return cls(int.from_bytes(data, 'big'))
+...     
+...     def to_data(self):
+...         return self.value.to_bytes(4, 'big')
+
+>>> custom_parser = Parser.from_parsable(CustomObject, ['CUSTOM'])
+>>> custom_parser.register()
+
+This example demonstrates how to create a custom parsable object and register it 
+with the parser system.
+
+Note:
+-----
+Before using additional built-in parsers like BOOL, SET, LIST, etc., you must call 
+the BuiltinParsers.init() method to register them with SQLite.
+
+See Also:
+---------
+sqlite3 : The underlying SQLite library for Python.
 """
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
@@ -18,7 +70,7 @@ from sqlite3 import adapters, converters, PrepareProtocol
 __all__ = ['DefaultDataType', 'allowed_types', 'allowed_typenames', 'Parser', 'Parsable', 'BuiltinParsers']
 
 type DefaultDataType = bytes | str | int | float | None
-""":class:`TypeAlias`: types that are supported by sqlite3 natively."""
+"""Types that are supported by sqlite3 natively."""
 
 
 def allowed_types() -> set[type]:
@@ -26,21 +78,24 @@ def allowed_types() -> set[type]:
     
     Returns
     -------
-    :obj:`set[type]`: set of writable types
+    set[type]
+        set of writable types
     """
     return {bytes, str, int, float, None, *(k[0] for k in adapters)}
 
 
 def allowed_typenames() -> set[str]:
     """List names that can be used as column type in database.
-
-    .. note::
-        For **default** data types, this list includes only their affinities. So there are no
-        such typenames as `DOUBLE`, `TINYINT`, `VARCHAR(...)` and etc. in the result set.
     
     Returns
     -------
-    :obj:`set[str]`: set of allowed columns types
+    set[str]
+        set of allowed columns types
+
+    Note
+    ----
+    For default data types, this list includes only their affinities. So there are no
+    such typenames as `DOUBLE`, `TINYINT`, `VARCHAR(...)` and etc. in the result set.
     """
     return {'BLOB', 'TEXT', 'INTEGER', 'REAL', 'NUMERIC', *converters}
 
@@ -50,9 +105,9 @@ class Parsable(ABC):
 
     Methods
     -------
-    from_data(data)
+    from_data
         Constructs self from binary data.
-    to_data()
+    to_data
         Converts self to any instance of the allowed type (listed by `allowed_types()` method).
     
     See Also
@@ -71,7 +126,8 @@ class Parsable(ABC):
 
         Returns
         -------
-        :obj:`Parsable`: instance of the parsable class.
+        Parsable
+            Instance of the parsable class.
         """
 
     @abstractmethod
@@ -80,7 +136,8 @@ class Parsable(ABC):
         
         Returns
         -------
-        :obj:`DefaultDataType | Parsable`: object that can be written into sqlite database.
+        DefaultDataType, Parsable
+            Object that can be written into sqlite database.
         """
 
 
@@ -103,24 +160,11 @@ class Parser[T]:
         Method to parse a data from bytes.
     dumps : Callable[[T], DefaultDataType | Parsable]
         Method to convert an object to the `DefaultDataType` or `Parsable` object.
-    
-    Methods
-    -------
-    from_parsable
-        Constructs a new instance from a parsable object and optional typenames.
-    get_by_type
-        Find an instance that supports the given type.
-    get_by_typename
-        Find an instance that supports the given type name.
-    register
-        Register converters and adapters in sqlite3.
-    unregister
-        Unregister converters and adapters in sqlite3.
 
     See Also
     --------
-    :class:`Parsable`: Base class for custom parsable objects.
-    :class:`BuiltinParsers`: Useful builtin data parsers.
+    :class:`sl3aio.Parsable`: Base class for custom parsable objects.
+    :class:`sl3aio.BuiltinParsers`: Useful builtin data parsers.
     """
     instances: ClassVar[set[Self]] = set()
     types: set[type[T]]
@@ -144,12 +188,13 @@ class Parser[T]:
         ----------
         parsable : type[Parsable]
             Object that can be loaded and dumped using its own converters. See :class:`Parsable`.
-        typenames : Iterable[str] = ()
-            Optional typenames. If not provided name of the class will be used instead.
+        typenames : Iterable[str], optional
+            Optional typenames. If not provided name of the class will be used instead. Defaults to empty tuple.
 
         Returns
         -------
-        :obj:`Parser`: New instance of the parser.
+        Parser
+            New instance of the parser.
         """
         return cls(
             {parsable},
@@ -169,7 +214,8 @@ class Parser[T]:
 
         Returns
         -------
-        :obj:`Parser`: Instance of the parser or `None` if no parser corresponding to the given type was found.
+        Parser
+            Instance of the parser or None if no parser corresponding to the given type was found.
         """
         return next((parser for parser in cls.instances if __type in parser.types), None)
     
@@ -184,7 +230,8 @@ class Parser[T]:
         
         Returns
         -------
-        :obj:`Parser`: Instance of the parser or `None` if no parser corresponding to the given typename was found.
+        Parser
+            Instance of the parser or None if no parser corresponding to the given typename was found.
         """
         __typename = __typename.upper()
         return next((parser for parser in cls.instances if __typename in parser.typenames), None)
@@ -200,7 +247,8 @@ class Parser[T]:
         
         Returns
         -------
-        :obj:`Parser`: Self for chaining.
+        Parser
+            Self for chaining.
         """
         for __typename in self.typenames:
             converters[__typename] = self.loads
@@ -213,7 +261,8 @@ class Parser[T]:
         
         Returns
         -------
-        :obj:`Parser`: Self for chaining.
+        Parser
+            Self for chaining.
         """
         for __typename in self.typenames:
             converters.pop(__typename, None)
@@ -266,16 +315,11 @@ class BuiltinParsers:
     .. important::
         Before using `BOOL`, `SET`, `LIST`, `TUPLE`, `DICT`, `JSON`, `TIME`, `DATE` and
         `DATETIME` parsers, you must call `BuiltinParsers.init()` method.
-
-    Methods
-    -------
-    init()
-        Initializes extra parsers.
     
     See Also
     --------
-    :class:`Parser`: Class for creating custom parsers.
-    :class:`Parsable`: Base class for custom parsable objects.
+    :class:`sl3aio.Parser`: Class for creating custom parsers.
+    :class:`sl3aio.Parsable`: Base class for custom parsable objects.
     """
     BLOB: ClassVar[Parser[bytes]] = Parser({bytes}, {'BLOB', 'BYTES'}, bytes, bytes)
     INT: ClassVar[Parser[int]] = Parser({int}, {'INTEGER', 'INT'}, int, int)
