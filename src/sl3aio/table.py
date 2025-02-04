@@ -80,11 +80,24 @@ class TableColumnValueGenerator[T]:
     _instances: ClassVar[dict[str, Self]] = {}
     name: str
     generator: Callable[[], T | Awaitable[T]]
+    
+    @classmethod
+    def make[T](
+        cls,
+        name: str,
+        func: Callable[[], T | Awaitable[T]],
+        register: bool = True
+    ) -> 'TableColumnValueGenerator[T]':
+        return cls(name, func).register() if register else cls(name, func)
 
     @classmethod
-    def from_function(cls, name: str) -> Callable[[Callable[[], T | Awaitable[T]]], Self]:
-        def decorator(func: Callable[[], T | Awaitable[T]]) -> Self:
-            return cls(name, func)
+    def from_function[T](
+        cls,
+        name: str,
+        register: bool = True
+    ) -> Callable[[Callable[[], T | Awaitable[T]]], 'TableColumnValueGenerator[T]']:
+        def decorator(func: Callable[[], T | Awaitable[T]]) -> 'TableColumnValueGenerator[T]':
+            return cls.make(name, func, register)
         return decorator
 
     @classmethod

@@ -27,8 +27,8 @@ This module is designed to be used in conjunction with other components of the s
 useful for developers who want a more abstract and Pythonic way of working with database tables, without dealing 
 directly with SQL or low-level database operations.
 
-Example:
---------
+Examples:
+---------
 >>> class User(EasyTable[int | str]):
 ...     id: int = EasyColumn(TableColumnValueGenerator('randomID'), primary=True, nullable=False)
 ...     name: str = 'John Doe'
@@ -51,7 +51,7 @@ from math import trunc, floor, ceil
 from functools import partial
 from collections.abc import AsyncIterator, Callable, Container
 from dataclasses import dataclass, replace
-from typing import Any, Self, Concatenate
+from typing import Any, Self, Concatenate, get_args
 from .dataparser import Parser
 from .table import Table, TableColumn, TableRecord, TableSelectionPredicate, TableColumnValueGenerator
 
@@ -645,7 +645,7 @@ class EasyColumn[T]:
         """
         return TableColumn(
             name,
-            parser.typenames[0] if (parser := Parser.get_by_type(__type)) else 'TEXT',
+            next(iter(parser.typenames)) if (parser := Parser.get_by_type(__type)) else 'TEXT',
             *((None, self.default) if isinstance(self.default, TableColumnValueGenerator) else (self.default, None)),
             self.primary,
             self.unique,
@@ -667,20 +667,59 @@ class EasyTable[T]:
 
     Examples
     --------
-    >>> # Create an EasyTable (by the way, you can call it Table markup) subclass, representing something.
-    >>> # Here we create a table for users' data.
-    >>> class User(EasyTable[int | str]):
-    ...     id: int = EasyColumn(TableColumnValueGenerator('randomID'), primary=True, nullable=False)
-    ...     name: str = 'John Doe'
-    ...     age: int = EasyColumn(nullable=False)
-    ...     email: str
-    
-    >>> columns = User.columns()  # Then we can extract columns from the class.
-    >>> table = MemoryTable('user', columns)  # And use them to create a table object.
-    >>> User = User(table=table)  # Finally, we can replace the class with an instance with the underlying table passed in it.
-    >>> await (User.id == 18798561).select_one()  # Now we can easily manipulate the table.
+    In the next example you can see the way to create a table markup using EasyTable, convert it into a
+    working table and then access the table using EasyTable functions.
+    .. code-block:: python
+        from sl3aio import EasyColumn, EasyTable, MemoryTable, TableColumnValueGenerator, EasySelector
+        from random import randint
+        from asyncio import run
+
+
+        # Custom value generator for user IDs. See TableColumnValueGenerator.
+        @TableColumnValueGenerator.from_function('userID')
+        def __generate_user_id() -> int:
+            return randint(1000000, 9999999)
+
+
+        # Define the structure of the Users table using EasyTable
+        # EasyTable[int | str] indicates that column values can be either int or str
+        class UsersTableMarkup(EasyTable[int | str]):
+            # Define columns with their types, properties, and constraints
+            # EasySelector[int] specifies that this column will contain integer values
+            id: EasySelector[int] = EasyColumn(TableColumnValueGenerator('userID'), primary=True, nullable=False)
+            # 'John Doe' is set as the default value for the name column
+            name: EasySelector[str] = 'John Doe'
+            # age column is marked as non-nullable, requiring a value for every record
+            age: EasySelector[int] = EasyColumn(nullable=False)
+            # email column is defined without additional constraints
+            email: EasySelector[str]
+
+
+        async def main():
+            # Create a MemoryTable instance based on the UsersTableMarkup
+            # This step converts the markup into actual table columns
+            columns = UsersTableMarkup.columns()
+            # Initialize an in-memory table named 'users' with the defined columns
+            table = MemoryTable('users', columns)
+            # Create a high-level interface for interacting with the users table
+            users_table = UsersTableMarkup(table)
+
+            # Insert a new user record into the table
+            # The 'id' field is automatically generated using the custom generator
+            await users_table.insert(name='Foo Bar', age=23, email='foobar@gmail.com')
+
+            # Demonstrate querying capabilities
+            # This line performs these operations:
+            # 1. Create a query condition: users_table.name == 'Foo Bar'
+            # 2. Select one record matching this condition: .select_one()
+            # 3. Access the 'email' field of the selected record
+            # 4. Print the result
+            print((await (users_table.name == 'Foo Bar').select_one()).email)
+
+
+        run(main())  # >>> foobar@gmail.com
     """
-    table: Table[T] | None = None
+    table: Table[T]
 
     @classmethod
     def columns(cls) -> tuple[TableColumn[T], ...]:
@@ -701,7 +740,7 @@ class EasyTable[T]:
                 delattr(cls, column_name)
             except AttributeError:
                 pass
-            columns.append(value.to_column(column_name, column_type))
+            columns.append(value.to_column(column_name, get_args(column_type)[0]))
         return tuple(columns)
     
     async def contains(self, record: TableRecord[T]) -> bool:
