@@ -28,7 +28,7 @@ This module is designed to be used in conjunction with the sl3aio library for SQ
 database operations. It provides the necessary tools to seamlessly convert between 
 Python objects and their SQLite representations.
 
-.. attention::
+.. important::
     If you create custom parsers, you should always set the connection's parameter
     ``detect_types`` to ``sqlite3.PARSE_DECLTYPES``.
 
@@ -329,11 +329,10 @@ class BuiltinParsers:
     DATETIME : :class:`Parser` [`datetime`]
         Parser for date and time in `iso 8601 <https://en.wikipedia.org/wiki/ISO_8601>`_ format.
 
-    .. attention::
-        Do not registrate ``BLOB``, ``INT``, ``REAL`` and ``TEXT`` parsers using
-        their's ``register()`` method!
-
     .. important::
+        Do not registrate ``BLOB``, ``INT``, ``REAL`` and ``TEXT`` parsers using
+        their's ``register()`` method.
+
         Before using ``BOOL``, ``SET``, ``LIST``, ``TUPLE``, ``DICT``, ``JSON``, ``TIME``,
         ``DATE`` and ``DATETIME`` parsers, you must call :func:`BuiltinParsers.init()` method.
     
