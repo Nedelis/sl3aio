@@ -97,7 +97,7 @@ class EasySelector[T]:
         """Creates a new EasySelector with the specified table.
 
         Parameters
-        ----
+        ----------
         table : Table[T]
             The table to pin to the selector.
 
@@ -112,7 +112,7 @@ class EasySelector[T]:
         """Applies the selector to a given record.
 
         Parameters
-        ----
+        ----------
         record : TableRecord[T]
             The record to apply the selector to.
 
@@ -128,7 +128,7 @@ class EasySelector[T]:
         """Selects records from the table based on the current selector.
 
         Parameters
-        ----
+        ----------
         table : Table[T], None, optional
             The table to select from. If None, uses the pinned table. Defaults to None.
 
@@ -145,7 +145,7 @@ class EasySelector[T]:
         """Selects a single record from the table based on the current selector.
 
         Parameters
-        ----
+        ----------
         table : Table[T], None, optional
             The table to select from. If None, uses the pinned table. Defaults to None.
 
@@ -160,7 +160,7 @@ class EasySelector[T]:
         """Selects and removes records from the table based on the current selector.
 
         Parameters
-        ----
+        ----------
         table : Table[T], None, optional
             The table to pop from. If None, uses the pinned table. Defaults to None.
 
@@ -177,7 +177,7 @@ class EasySelector[T]:
         """Deletes all records from the table that match the current selector.
 
         Parameters
-        ----
+        ----------
         table : Table[T], None, optional
             The table to delete from. If None, uses the pinned table. Defaults to None.
         """
@@ -188,7 +188,7 @@ class EasySelector[T]:
         """Deletes a single record from the table that matches the current selector.
 
         Parameters
-        ----
+        ----------
         table : Table[T], None, optional
             The table to delete from. If None, uses the pinned table. Defaults to None.
 
@@ -203,10 +203,10 @@ class EasySelector[T]:
         """Updates records in the table that match the current selector.
 
         Parameters
-        ----
+        ----------
         table : Table[T]
             The table to update.
-        **to_update : T
+        to_update : T
             Keyword arguments specifying the fields to update and their new values.
 
         Returns
@@ -222,10 +222,10 @@ class EasySelector[T]:
         """Updates all records in the table that match the current selector.
 
         Parameters
-        ----
+        ----------
         table : Table[T]
             The table to update.
-        **to_update : T
+        to_update : T
             Keyword arguments specifying the fields to update and their new values.
         """
         async for _ in self.updated(table, **to_update):
@@ -235,10 +235,10 @@ class EasySelector[T]:
         """Updates a single record in the table that matches the current selector.
 
         Parameters
-        ----
+        ----------
         table : Table[T]
             The table to update.
-        **to_update : T
+        to_update : T
             Keyword arguments specifying the fields to update and their new values.
 
         Returns
@@ -252,7 +252,7 @@ class EasySelector[T]:
         """Appends a new selector to the current selector chain.
 
         Parameters
-        ----
+        ----------
         selector : Callable[[bool, Any, TableRecord[T]], tuple[bool, Any]]
             The selector to append.
 
@@ -271,14 +271,14 @@ class EasySelector[T]:
         """Passes the result of the current selector into a function.
 
         Parameters
-        ----
+        ----------
         func : Callable[Concatenate[Any, P], Any]
             The function to pass the result into.
         key_or_pos : int, str, optional
             Argument name or position in the function's signature.  Defaults to 0.
-        *args : P.args
+        args : P.args
             Positional arguments to pass to the function.
-        **kwargs : P.kwargs
+        kwargs : P.kwargs
             Keyword arguments to pass to the function.
 
         Returns
@@ -302,7 +302,7 @@ class EasySelector[T]:
         """Sets the 'ok' status of the selector to a fixed value.
 
         Parameters
-        ----
+        ----------
         value : bool, optional
             The value to set for the 'ok' status. Defaults to True.
 
@@ -320,7 +320,7 @@ class EasySelector[T]:
         """Checks if the result of the current selector is in a container.
 
         Parameters
-        ----
+        ----------
         container : Container, Self
             The container to check against.
 
@@ -341,7 +341,7 @@ class EasySelector[T]:
         """Combines the current selector with another using logical AND.
 
         Parameters
-        ----
+        ----------
         other : Self
             The other selector to combine with.
 
@@ -364,7 +364,7 @@ class EasySelector[T]:
         """Combines the current selector with another using logical OR.
 
         Parameters
-        ----
+        ----------
         other : Self
             The other selector to combine with.
 
@@ -628,7 +628,7 @@ class EasyColumn[T]:
         and the provided name and type.
 
         Parameters
-        ----
+        ----------
         name : str
             The name of the column.
         __type : type[T]
@@ -667,9 +667,11 @@ class EasyTable[T]:
 
     Examples
     --------
-    In the next example you can see the way to create a table markup using EasyTable, convert it into a
-    working table and then access the table using EasyTable functions.
+    In the next example you can see the way to create a markup using EasyTable, convert it into a
+    working table and then access it using EasyTable functions.
+
     .. code-block:: python
+
         from sl3aio import EasyColumn, EasyTable, MemoryTable, TableColumnValueGenerator, EasySelector
         from random import randint
         from asyncio import run
@@ -718,6 +720,7 @@ class EasyTable[T]:
 
 
         run(main())  # >>> foobar@gmail.com
+
     """
     table: Table[T]
 
@@ -766,7 +769,7 @@ class EasyTable[T]:
         ----------
         ignore_existing : bool, optional
             If True, ignore if the record already exists. Defaults to False.
-        **values : T
+        values : T
             The values to insert, specified as keyword arguments.
 
         Returns
@@ -784,7 +787,7 @@ class EasyTable[T]:
         ----------
         ignore_existing : bool, optinal
             If True, ignore if the records already exist. Defaults to False.
-        *values : dict[str, T]
+        values : dict[str, T]
             The values to insert, specified as dictionaries.
 
         Returns
@@ -878,7 +881,7 @@ class EasyTable[T]:
         ----------
         predicate : TableSelectionPredicate[T], None, optional
             The selection predicate. Defaults to None.
-        **to_update : T
+        to_update : T
             The values to update, specified as keyword arguments.
 
         Returns
@@ -897,7 +900,7 @@ class EasyTable[T]:
         ----------
         predicate : TableSelectionPredicate[T], None, optional
             The selection predicate. Defaults to None.
-        **to_update : T
+        to_update : T
             The values to update, specified as keyword arguments.
         """
         async for _ in self.updated(predicate, **to_update):
@@ -910,7 +913,7 @@ class EasyTable[T]:
         ----------
         predicate : TableSelectionPredicate[T], None, optional
             The selection predicate. Defaults to None.
-        **to_update : T
+        to_update : T
             The values to update, specified as keyword arguments.
 
         Returns

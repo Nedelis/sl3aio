@@ -30,21 +30,23 @@ Python objects and their SQLite representations.
 
 Example:
 --------
->>> from sl3aio.dataparser import Parser, Parsable
+.. code-block:: python
 
->>> class CustomObject(Parsable):
-...     def __init__(self, value):
-...         self.value = value
-...     
-...     @classmethod
-...     def from_data(cls, data: bytes):
-...         return cls(int.from_bytes(data, 'big'))
-...     
-...     def to_data(self):
-...         return self.value.to_bytes(4, 'big')
+    from sl3aio.dataparser import Parser, Parsable
+   
+    class CustomObject(Parsable):
+        def __init__(self, value):
+            self.value = value
+        
+        @classmethod
+        def from_data(cls, data: bytes):
+            return cls(int.from_bytes(data, 'big'))
+        
+        def to_data(self):
+            return self.value.to_bytes(4, 'big')
 
->>> custom_parser = Parser.from_parsable(CustomObject, ['CUSTOM'])
->>> custom_parser.register()
+    custom_parser = Parser.from_parsable(CustomObject, ['CUSTOM'])
+    custom_parser.register()
 
 This example demonstrates how to create a custom parsable object and register it 
 with the parser system.
@@ -53,10 +55,6 @@ Note:
 -----
 Before using additional built-in parsers like BOOL, SET, LIST, etc., you must call 
 the BuiltinParsers.init() method to register them with SQLite.
-
-See Also:
----------
-sqlite3 : The underlying SQLite library for Python.
 """
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
@@ -90,12 +88,11 @@ def allowed_typenames() -> set[str]:
     Returns
     -------
     set[str]
-        set of allowed columns types
+        Set of allowed columns types.
 
-    Note
-    ----
-    For default data types, this list includes only their affinities. So there are no
-    such typenames as `DOUBLE`, `TINYINT`, `VARCHAR(...)` and etc. in the result set.
+    .. note::
+        For default data types, this list includes only their affinities. So there are no
+        such typenames as `DOUBLE`, `TINYINT`, `VARCHAR(...)` and etc. in the result set.
     """
     return {'BLOB', 'TEXT', 'INTEGER', 'REAL', 'NUMERIC', *converters}
 
@@ -163,8 +160,8 @@ class Parser[T]:
 
     See Also
     --------
-    :class:`sl3aio.Parsable`: Base class for custom parsable objects.
-    :class:`sl3aio.BuiltinParsers`: Useful builtin data parsers.
+    :class:`sl3aio.dataparser.Parsable`: Base class for custom parsable objects.
+    :class:`sl3aio.dataparser.BuiltinParsers`: Useful builtin data parsers.
     """
     instances: ClassVar[set[Self]] = set()
     types: set[type[T]]
@@ -318,8 +315,8 @@ class BuiltinParsers:
     
     See Also
     --------
-    :class:`sl3aio.Parser`: Class for creating custom parsers.
-    :class:`sl3aio.Parsable`: Base class for custom parsable objects.
+    :class:`sl3aio.dataparser.Parser`: Class for creating custom parsers.
+    :class:`sl3aio.dataparser.Parsable`: Base class for custom parsable objects.
     """
     BLOB: ClassVar[Parser[bytes]] = Parser({bytes}, {'BLOB', 'BYTES'}, bytes, bytes)
     INT: ClassVar[Parser[int]] = Parser({int}, {'INTEGER', 'INT'}, int, int)

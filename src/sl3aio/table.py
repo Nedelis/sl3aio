@@ -97,6 +97,7 @@ class TableColumnValueGenerator[T]:
         register: bool = True
     ) -> Callable[[Callable[[], T | Awaitable[T]]], 'TableColumnValueGenerator[T]']:
         def decorator(func: Callable[[], T | Awaitable[T]]) -> 'TableColumnValueGenerator[T]':
+            nonlocal name
             return cls.make(name, func, register)
         return decorator
 
