@@ -11,8 +11,9 @@ sl3aio documentation
     sl3aio.error
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 3
    :caption: Contents:
 
-   dataparser
    easytable
+   dataparser
+   table

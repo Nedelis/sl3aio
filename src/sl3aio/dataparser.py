@@ -7,23 +7,23 @@ between Python objects and SQLite database representations. It offers tools for
 creating custom parsers, handling various data types, and managing the conversion 
 process for database operations.
 
-Key Components:
----------------
+Key Components
+--------------
 1. :class:`DefaultDataType`: Type alias for basic types natively supported by SQLite.
 2. :class:`Parsable`: Abstract base class for creating custom parsable objects.
 3. :class:`Parser`: Class for creating and managing custom data parsers.
 4. :class:`BuiltinParsers`: Container for default and additional pre-defined parsers.
 
-Features:
----------
+Features
+--------
 - Support for native SQLite data types and custom Python objects
 - Extensible parser system for handling complex data types
 - Automatic registration and management of SQLite adapters and converters
 - Built-in parsers for common Python types (e.g., bool, set, list, dict, datetime)
 - Utility functions for querying allowed types and type names
 
-Usage:
-------
+Usage
+-----
 This module is designed to be used in conjunction with the sl3aio library for SQLite 
 database operations. It provides the necessary tools to seamlessly convert between 
 Python objects and their SQLite representations.
@@ -32,8 +32,8 @@ Python objects and their SQLite representations.
     If you create custom parsers, you should always set the connection's parameter
     ``detect_types`` to ``sqlite3.PARSE_DECLTYPES``.
 
-Examples:
----------
+Examples
+--------
 - If you need to work with booleans, or date and time, or lists, tuples, sets and dicts,
   or json objects, you don't need to create custom parsers for them. Call
   :func:`BuiltinParsers.init()` method and you will be able to work with these types.
@@ -112,7 +112,8 @@ def allowed_types() -> set[type]:
     
     Returns
     -------
-    `set` [`type`]: Set of writable types.
+    `set` [`type`]
+        Set of writable types.
     """
     return {bytes, str, int, float, None, *(k[0] for k in adapters)}
 
@@ -122,7 +123,8 @@ def allowed_typenames() -> set[str]:
     
     Returns
     -------
-    `set` [`str`]: Set of allowed columns types.
+    `set` [`str`]
+        Set of allowed columns types.
 
     .. note::
         For default data types, this list includes only their affinities. So there are no
@@ -136,7 +138,7 @@ class Parsable(ABC):
     
     See Also
     --------
-    :class:`Parser`: Class for creating custom parsers.
+    - :class:`Parser`
     """
     @classmethod
     @abstractmethod
@@ -150,7 +152,8 @@ class Parsable(ABC):
 
         Returns
         -------
-        :class:`Parsable`: Instance of the parsable class.
+        :class:`Parsable`
+            Instance of the parsable class.
         """
 
     @abstractmethod
@@ -159,7 +162,8 @@ class Parsable(ABC):
         
         Returns
         -------
-        :class:`Parsable` | :obj:`DefaultDataType`: Object that can be written into sqlite database.
+        :class:`Parsable` | :obj:`DefaultDataType`
+            Object that can be written into sqlite database.
         """
 
 
@@ -185,10 +189,8 @@ class Parser[T]:
 
     See Also
     --------
-    :class:`Parsable`
-        Base class for custom parsable objects.
-    :class:`BuiltinParsers`
-        Useful builtin data parsers.
+    - :class:`Parsable`  
+    - :class:`BuiltinParsers`
     """
     instances: ClassVar[set[Self]] = set()
     types: set[type[T]]
@@ -218,7 +220,8 @@ class Parser[T]:
 
         Returns
         -------
-        :class:`Parser`: New instance of the parser.
+        :class:`Parser`
+            New instance of the parser.
         """
         return cls(
             {parsable},
@@ -238,8 +241,8 @@ class Parser[T]:
 
         Returns
         -------
-        :class:`Parser` | `None`: Instance of the parser or None if no parser corresponding to the given
-        type was found.
+        :class:`Parser` | `None`
+            Instance of the parser or None if no parser corresponding to the given type was found.
         """
         return next((parser for parser in cls.instances if _type in parser.types), None)
     
@@ -254,8 +257,8 @@ class Parser[T]:
         
         Returns
         -------
-        :class:`Parser` | `None`: Instance of the parser or None if no parser corresponding
-        to the given typename was found.
+        :class:`Parser` | `None`
+            Instance of the parser or None if no parser corresponding to the given typename was found.
         """
         _typename = _typename.upper()
         return next((parser for parser in cls.instances if _typename in parser.typenames), None)
@@ -271,7 +274,8 @@ class Parser[T]:
         
         Returns
         -------
-        :class:`Parser`: Self for chaining.
+        :class:`Parser`
+            Self for chaining.
         """
         for __typename in self.typenames:
             converters[__typename] = self.loads
@@ -284,7 +288,8 @@ class Parser[T]:
         
         Returns
         -------
-        :class:`Parser`: Self for chaining.
+        :class:`Parser`
+            Self for chaining.
         """
         for __typename in self.typenames:
             converters.pop(__typename, None)
@@ -334,14 +339,12 @@ class BuiltinParsers:
         their's ``register()`` method.
 
         Before using ``BOOL``, ``SET``, ``LIST``, ``TUPLE``, ``DICT``, ``JSON``, ``TIME``,
-        ``DATE`` and ``DATETIME`` parsers, you must call :func:`BuiltinParsers.init()` method.
+        ``DATE`` and ``DATETIME`` parsers, you must call :meth:`BuiltinParsers.init()` method.
     
     See Also
     --------
-    :class:`Parser`
-        Class for creating custom parsers.
-    :class:`Parsable`
-        Base class for custom parsable objects.
+    - :class:`Parser`
+    - :class:`Parsable`
     """
     BLOB: ClassVar[Parser[bytes]] = Parser({bytes}, {'BLOB', 'BYTES'}, bytes, bytes)
     INT: ClassVar[Parser[int]] = Parser({int}, {'INTEGER', 'INT'}, int, int)

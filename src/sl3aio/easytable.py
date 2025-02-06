@@ -6,8 +6,8 @@ This module provides a high-level, user-friendly interface for working with data
 It offers simplified abstractions for common database operations, making it easier to define, query, and manipulate 
 database tables.
 
-Key Components:
----------------
+Key Components
+--------------
 1. EasySelector: A powerful class for building complex database queries and selections.
 2. EasyColumn: A simplified way to define table columns with various attributes.
 3. EasyTable: A high-level representation of database tables with easy-to-use methods for common operations.
@@ -15,36 +15,174 @@ Key Components:
 The module aims to provide a more intuitive and Pythonic way of interacting with database tables, reducing 
 the complexity often associated with SQL operations.
 
-Features:
----------
+Features
+--------
 - Simplified table and column definitions
 - Fluent interface for building complex queries
 - Easy-to-use methods for common database operations (insert, select, update, delete)
 
-Usage:
-------
+Usage
+-----
 This module is designed to be used in conjunction with other components of the sl3aio library. It's particularly 
 useful for developers who want a more abstract and Pythonic way of working with database tables, without dealing 
 directly with SQL or low-level database operations.
 
-Examples:
----------
->>> class User(EasyTable[int | str]):
-...     id: int = EasyColumn(TableColumnValueGenerator('randomID'), primary=True, nullable=False)
-...     name: str = 'John Doe'
-...     age: int = EasyColumn(nullable=False)
-...     email: str
+.. _easytable-examples:
 
->>> table = MemoryTable('user', User.columns())
->>> User = User(table=table)
->>> await (User.id == 18798561).select_one()
+Examples
+--------
+- Theory of EasySelector:
 
-This example demonstrates how to define a table, create an instance, and perform a simple query.
+.. code-block:: python
 
-Note:
------
-This module is part of the sl3aio library and is designed to work seamlessly with other components of the library. 
-It's recommended to familiarize yourself with the basic concepts of sl3aio before using this module extensively.
+    # The selector works as follows:
+    # 0. At a start point, selector's value is equal to the TableRecord.
+    # 1. You build a selection functions chain using EasySelector methods. Those are:
+    #    - Getters ('getattr', 'getitem')
+    #    - Function calls (if current selected value is callable)
+    #    - Logical operators ('==', '<', 'not', 'int', etc.). If failed, selector
+    #      will return False. After failure, some selections won't be applied.
+    #    - Arithmetic operators ('+', '-', '*', 'abs', etc.)
+    #    - Binary operators ('>>', '<<', '^', etc.)
+    #    - Other function calls using 'pass_into' method.
+    # 2. Then, when needed, selector will iterate over the table and apply itself
+    # on each record of the table, filtering and getting specific information
+    # from them.
+
+    # Here is a guide.
+
+    # Selecting an attribute and getting item from current value:
+    selector.<attr_name>
+    selector[<item_name>]
+    # so to select a column at a start do: selector.<column_name>
+
+    # Checking current value against logical operations:
+    # For and, or, in, is and is not operators use and_, or_, in_, is_ and is_not_ methods.
+    selector == 'desired_value'
+    selector > 10
+    selector.in_([...])
+    selector.is_not_(None)
+    # ... and so on.
+
+    # Doing maths with current value:
+    selector + 10
+    selector - 5
+    round(selector)
+    # ... and so on.
+
+    # Making binary operations with current value:
+    selector >> 10
+    selector << 5
+    selector ^ 10
+    #... and so on.
+
+    # Passing current value into a custom function:
+    # Note 'key_or_pos' parameter. With it you can you can specify exactly how
+    # the value will be passed into the function.
+    selector.pass_into(my_function, key_or_pos=..., *other_args, **other_kwargs)
+
+    # Calling current value:
+    selector(...)
+
+- Here is an example of how to use the EasySelector class:
+
+.. code-block:: python
+
+    from sl3aio import EasySelector
+
+    async def main():
+        # ... some code that loads table into variable 'my_table'.
+
+        selector = EasySelector(my_table)  # Create a selector for the table
+
+        # Set up the selector. It will pass for the records that are:
+        # 1. Has 'name' column value equal to 'FooBar' and 'age' column value in range from 18 to 37
+        # 2. Has True 'is_cool' column value
+        # 3. Has 'data' column value decodable by key 'pass12345'.
+        setted_up_selector = (
+            selector.name == 'FooBar' and
+            selector.age in range(18, 37) or
+            selector.is_cool or
+            selector.data.decode_with_key('pass12345').is_(True)
+        )
+
+        # Use the selector to get records from the table
+        selected_records = await setted_up_selector.select()
+
+- If you already have a declared table and you want to use it with EasyTable, you can do this:
+
+.. code-block:: python
+
+    from sl3aio import EasyTable
+
+    async def main():
+        # ... some code that loads table into variable 'my_table'.
+        foo_table = EasyTable(my_table)  # Pass it into the EasyTable constructor.
+
+        # And perform some operations on the table using EasyTable methods.
+        await foo_table.insert(...)
+        await foo_table.update(...)
+        await foo_table.select(...)
+        # ... and so on.
+
+- If you don't have a table and do not want to create it using classes of the table module, you
+  can create a markup using EasyTable and convert it into a working table. Then you can use
+  EasyTable according to the previous example.
+
+.. code-block:: python
+
+    from sl3aio import EasyColumn, EasyTable, MemoryTable, TableColumnValueGenerator, EasySelector
+    from random import randint
+    from asyncio import run
+
+
+    # Custom value generator for user IDs. See TableColumnValueGenerator.
+    @TableColumnValueGenerator.from_function('userID')
+    def __generate_user_id() -> int:
+        return randint(1000000, 9999999)
+
+
+    # Define the structure of the Users table using EasyTable
+    # EasyTable[int | str] indicates that column values can be either int or str
+    class UsersTableMarkup(EasyTable[int | str]):
+        # Define columns with their types, properties, and constraints
+        # EasySelector[int] specifies that this column will contain integer values
+        id: EasySelector[int] = EasyColumn(TableColumnValueGenerator('userID'), primary=True, nullable=False)
+        # 'John Doe' is set as the default value for the name column
+        name: EasySelector[str] = 'John Doe'
+        # age column is marked as non-nullable, requiring a value for every record
+        age: EasySelector[int] = EasyColumn(nullable=False)
+        # email column is defined without additional constraints
+        email: EasySelector[str]
+
+
+    async def main():
+        # Create a MemoryTable instance based on the UsersTableMarkup
+        # This step converts the markup into actual table columns
+        columns = UsersTableMarkup.columns()
+        # Initialize an in-memory table named 'users' with the defined columns
+        table = MemoryTable('users', columns)
+        # Create a high-level interface for interacting with the users table
+        users_table = UsersTableMarkup(table)
+
+        # Insert a new user record into the table
+        # The 'id' field is automatically generated using the custom generator
+        await users_table.insert(name='Foo Bar', age=23, email='foobar@gmail.com')
+
+        # Demonstrate querying capabilities
+        # This line performs these operations:
+        # 1. Create a query condition: users_table.name == 'Foo Bar'
+        # 2. Select one record matching this condition: .select_one()
+        # 3. Access the 'email' field of the selected record
+        # 4. Print the result
+        print((await (users_table.name == 'Foo Bar').select_one()).email)
+
+
+    run(main())  # >>> foobar@gmail.com
+
+See Also
+--------
+- :mod:`sl3aio.table`
 """
 import operator
 from math import trunc, floor, ceil
@@ -55,10 +193,25 @@ from typing import Any, Self, Concatenate, get_args
 from .dataparser import Parser
 from .table import Table, TableColumn, TableRecord, TableSelectionPredicate, TableColumnValueGenerator
 
-__all__ = ['EasySelector', 'EasyColumn', 'EasyTable']
+__all__ = ['EasySelector', 'EasyColumn', 'EasyTable', 'default_selector']
 
 
-def _default_selector(previous, _) -> tuple[bool, Any]:
+def default_selector(previous, _: TableRecord) -> tuple[True, Any]:
+    """The default selector function for :class:`EasySelector` that always returns True and
+    the provided value. You can slightly understand EasySelector's mechanism using this function.
+    
+    Parameters
+    ----------
+    previous : `Any`
+        Value that was selected by selector previously.
+    _ : :class:`sl3aio.table.TableRecord`
+        The record that is being selected.
+
+    Returns
+    -------
+    `tuple` [`True`, `Any`]
+        Selection result. First value is an 'ok' flag, second value is a selection result.
+    """
     return True, previous
 
 
@@ -67,17 +220,24 @@ class EasySelector[T]:
     """A class for creating and manipulating selectors for database operations.
 
     This class provides methods for building complex selection criteria and performing
-    various database operations based on those criteria.
+    various database operations based on those criteria. Just like EasyTable, performing
+    database operations using this class does not require mannually closing/opening the
+    connection. See the :ref:`examples <easytable-examples>` to understand how to use
+    this class.
 
     Attributes
     ----------
-    table : Table[T], None, optional
+    table : :class:`sl3aio.table.Table` [`T`] | `None`, optional
         The database table to operate on. Defaults to None.
-    _selector : Callable[[Any, TableRecord[T]], tuple[bool, Any]], optional
-        The selector function. Defaults to :func:`sl3aio.easytable._default_selector`
+    _selector : `Callable` [[`Any`, :class:`sl3aio.table.TableRecord` [`T`]], `tuple` [`bool`, `Any`]], optional
+        The selector function. Defaults to :func:`default_selector`
+    
+    See Also
+    --------
+    - :class:`sl3aio.table.TableSelectionPredicate`
     """
     table: Table[T] | None = None
-    _selector: Callable[[Any, TableRecord[T]], tuple[bool, Any]] = _default_selector
+    _selector: Callable[[Any, TableRecord[T]], tuple[bool, Any]] = default_selector
 
     @property
     def predicate(self) -> TableSelectionPredicate[T]:
@@ -85,8 +245,8 @@ class EasySelector[T]:
 
         Returns
         -------
-        TableSelectionPredicate[T]
-            An async function that takes a TableRecord[T] and returns a boolean.
+        :class:`sl3aio.table.TableSelectionPredicate` [`T`]
+            An async function that takes a record and returns a boolean.
         """
         async def __predicate(record: TableRecord[T]) -> bool:
             nonlocal self
@@ -98,12 +258,12 @@ class EasySelector[T]:
 
         Parameters
         ----------
-        table : Table[T]
+        table : :class:`sl3aio.table.Table` [`T`]
             The table to pin to the selector.
 
         Returns
         -------
-        Self
+        :class:`EasySelector` [`T`]
             A new EasySelector instance with the specified table.
         """
         return replace(self, table=table)
@@ -113,15 +273,14 @@ class EasySelector[T]:
 
         Parameters
         ----------
-        record : TableRecord[T]
+        record : :class:`sl3aio.table.TableRecord` [`T`]
             The record to apply the selector to.
 
         Returns
         -------
-        tuple[bool, Any]
+        `tuple` [`bool`, `Any`]
             A tuple containing a boolean indicating if the selector matched, and the result of the selector application.
         """
-
         return self._selector(record, record)
 
     async def select(self, table: Table[T] | None = None) -> AsyncIterator[TableRecord[T]]:
@@ -129,12 +288,12 @@ class EasySelector[T]:
 
         Parameters
         ----------
-        table : Table[T], None, optional
+        table : :class:`sl3aio.table.Table` [`T`] | `None`, optional
             The table to select from. If None, uses the pinned table. Defaults to None.
 
         Returns
         -------
-        AsyncIterator[TableRecord[T]]
+        `AsyncIterator` [:class:`sl3aio.table.TableRecord` [`T`]]
             An async iterator of selected records.
         """
         async with (table or self.table) as table:
@@ -146,12 +305,12 @@ class EasySelector[T]:
 
         Parameters
         ----------
-        table : Table[T], None, optional
+        table : :class:`sl3aio.table.Table` [`T`] | `None`, optional
             The table to select from. If None, uses the pinned table. Defaults to None.
 
         Returns
         -------
-        TableRecord[T], None
+        :class:`sl3aio.table.TableRecord` [`T`] | `None`
             The selected record, or None if no record matches.
         """
         return await anext(self.select(table), None)
@@ -161,12 +320,12 @@ class EasySelector[T]:
 
         Parameters
         ----------
-        table : Table[T], None, optional
+        table : :class:`sl3aio.table.Table` [`T`] | `None`, optional
             The table to pop from. If None, uses the pinned table. Defaults to None.
 
         Returns
         -------
-        AsyncIterator[TableRecord[T]]
+        `AsyncIterator` [:class:`sl3aio.table.TableRecord` [`T`]]
             An async iterator of popped records.
         """
         async with (table or self.table) as table:    
@@ -178,7 +337,7 @@ class EasySelector[T]:
 
         Parameters
         ----------
-        table : Table[T], None, optional
+        table : :class:`sl3aio.table.Table` [`T`] | `None`, optional
             The table to delete from. If None, uses the pinned table. Defaults to None.
         """
         async for _ in self.pop(table):
@@ -189,12 +348,12 @@ class EasySelector[T]:
 
         Parameters
         ----------
-        table : Table[T], None, optional
+        table : :class:`sl3aio.table.Table` [`T`] | `None`, optional
             The table to delete from. If None, uses the pinned table. Defaults to None.
 
         Returns
         -------
-        TableRecord[T], None
+        :class:`sl3aio.table.TableRecord` [`T`] | `None`
             The deleted record, or None if no record matches.
         """
         return await anext(self.pop(table), None)
@@ -204,14 +363,14 @@ class EasySelector[T]:
 
         Parameters
         ----------
-        table : Table[T]
+        table : :class:`sl3aio.table.Table` [`T`]
             The table to update.
-        to_update : T
+        to_update : `T`
             Keyword arguments specifying the fields to update and their new values.
 
         Returns
         -------
-        AsyncIterator[TableRecord[T]]
+        `AsyncIterator` [:class:`sl3aio.table.TableRecord` [`T`]]
             An async iterator of updated records.
         """
         async with (table or self.table) as table:
@@ -223,9 +382,9 @@ class EasySelector[T]:
 
         Parameters
         ----------
-        table : Table[T]
+        table : :class:`sl3aio.table.Table` [`T`]
             The table to update.
-        to_update : T
+        to_update : `T`
             Keyword arguments specifying the fields to update and their new values.
         """
         async for _ in self.updated(table, **to_update):
@@ -236,14 +395,14 @@ class EasySelector[T]:
 
         Parameters
         ----------
-        table : Table[T]
+        table : :class:`sl3aio.table.Table` [`T`]
             The table to update.
-        to_update : T
+        to_update : `T`
             Keyword arguments specifying the fields to update and their new values.
 
         Returns
         -------
-        TableRecord[T], None
+        :class:`sl3aio.table.TableRecord` [`T`] | `None`
             The updated record, or None if no record matches.
         """
         return await anext(self.updated(table, **to_update), None)
@@ -253,12 +412,12 @@ class EasySelector[T]:
 
         Parameters
         ----------
-        selector : Callable[[bool, Any, TableRecord[T]], tuple[bool, Any]]
+        selector : `Callable` [[`bool`, `Any`, :class:`sl3aio.table.TableRecord` [`T`]], `tuple` [`bool`, `Any`]]
             The selector to append.
 
         Returns
         -------
-        EasySelector
+        :class:`EasySelector`
             A new EasySelector instance with the appended selector.
         """
         def __selector(previous, record: TableRecord[T]) -> tuple[bool, Any]:
@@ -272,18 +431,18 @@ class EasySelector[T]:
 
         Parameters
         ----------
-        func : Callable[Concatenate[Any, P], Any]
+        func : `Callable` [`Concatenate` [`Any`, `P`], `Any`]
             The function to pass the result into.
-        key_or_pos : int, str, optional
+        key_or_pos : `int` | `str`, optional
             Argument name or position in the function's signature.  Defaults to 0.
-        args : P.args
+        args : `P.args`
             Positional arguments to pass to the function.
-        kwargs : P.kwargs
+        kwargs : `P.kwargs`
             Keyword arguments to pass to the function.
 
         Returns
         -------
-        EasySelector
+        :class:`EasySelector`
             A new EasySelector instance with the modified selector.
         """
         if isinstance(key_or_pos, str):
@@ -303,30 +462,80 @@ class EasySelector[T]:
 
         Parameters
         ----------
-        value : bool, optional
+        value : `bool`, optional
             The value to set for the 'ok' status. Defaults to True.
 
         Returns
         -------
-        EasySelector
+        :class:`EasySelector`
             A new EasySelector instance with the modified selector.
         """
         def __selector(previous, record: TableRecord[T]) -> tuple[bool, Any]:
             nonlocal self, value
             return value, self._selector(previous, record)[1]
         return replace(self, _selector=__selector)
+
+    def is_(self, other: Any | Self) -> Self:
+        """Checks if the result of the current selector is a given object.
+        
+        Parameters
+        ----------
+        obj : `Any` | `Self`
+            The object to check against.
+
+        Returns
+        -------
+        :class:`EasySelector`
+            A new EasySelector instance with the modified selector.
+        """
+        if isinstance(other, self.__class__):
+            def __selector(previous, record: TableRecord[T]) -> tuple[bool, Any]:
+                nonlocal self, other
+                ok, obj = self._selector(previous, record)
+                _other = other.apply(record)
+                return (True, True) if ok and _other[0] and obj is _other[1] else (False, False)
+        def __selector(previous, record: TableRecord[T]) -> tuple[bool, Any]:
+            nonlocal self, other
+            ok, obj = self._selector(previous, record)
+            return (True, True) if ok and obj is other else (False, False)
+        return replace(self, _selector=__selector)
     
+    def is_not_(self, other: Any | Self) -> Self:
+        """Checks if the result of the current selector is not a given object.
+        
+        Parameters
+        ----------
+        obj : `Any` | `Self`
+            The object to check against.
+
+        Returns
+        -------
+        :class:`EasySelector`
+            A new EasySelector instance with the modified selector.
+        """
+        if isinstance(other, self.__class__):
+            def __selector(previous, record: TableRecord[T]) -> tuple[bool, Any]:
+                nonlocal self, other
+                ok, obj = self._selector(previous, record)
+                _other = other.apply(record)
+                return (True, True) if ok and _other[0] and obj is not _other[1] else (False, False)
+        def __selector(previous, record: TableRecord[T]) -> tuple[bool, Any]:
+            nonlocal self, other
+            ok, obj = self._selector(previous, record)
+            return (True, True) if ok and obj is not other else (False, False)
+        return replace(self, _selector=__selector)
+
     def in_(self, container: Container | Self) -> Self:
         """Checks if the result of the current selector is in a container.
 
         Parameters
         ----------
-        container : Container, Self
+        container : `Container` | `Self`
             The container to check against.
 
         Returns
         -------
-        EasySelector
+        :class:`EasySelector`
             A new EasySelector instance with the modified selector.
         """
         if isinstance(container, self.__class__):
@@ -342,12 +551,12 @@ class EasySelector[T]:
 
         Parameters
         ----------
-        other : Self
+        other : `Self`
             The other selector to combine with.
 
         Returns
         -------
-        EasySelector
+        :class:`EasySelector`
             A new EasySelector instance representing the combined selector.
         """
         def __selector(previous, record: TableRecord[T]) -> tuple[bool, Any]:
@@ -365,12 +574,12 @@ class EasySelector[T]:
 
         Parameters
         ----------
-        other : Self
+        other : `Self`
             The other selector to combine with.
 
         Returns
         -------
-        EasySelector
+        :class:`EasySelector`
             A new EasySelector instance representing the combined selector.
         """
         def __selector(previous, record: TableRecord[T]) -> tuple[bool, Any]:
@@ -388,7 +597,7 @@ class EasySelector[T]:
 
         Returns
         -------
-        EasySelector
+        :class:`EasySelector`
             A new EasySelector instance representing the negated selector.
         """
         def __selector(previous, record: TableRecord[T]) -> tuple[bool, Any]:
@@ -601,20 +810,20 @@ class EasyColumn[T]:
 
     Attributes
     ----------
-    default : T, TableColumnValueGenerator[T], None, optional
+    default : `T` | :class:`sl3aio.table.TableColumnValueGenerator` [`T`] | `None`, optional
         The default value for the column. Can be a static value, a TableColumnValueGenerator, or None.
         Defaults to None.
-    primary : bool, optional
+    primary : `bool`, optional
         Indicates if this column is a primary key. Defaults to False.
-    unique : bool, optional
+    unique : `bool`, optional
         Indicates if this column should have unique values. Defaults to False.
-    nullable : bool, optional
+    nullable : `bool`, optional
         Indicates if this column can contain NULL values. Defaults to True.
-    
-    Methods
-    -------
-    to_column
-        Converts the EasyColumn instance to a TableColumn instance.
+
+    See Also
+    --------
+    - :class:`sl3aio.table.TableColumnValueGenerator`
+    - :class:`sl3aio.table.TableColumn`
     """
     default: T | TableColumnValueGenerator[T] | None = None
     primary: bool = False
@@ -629,19 +838,18 @@ class EasyColumn[T]:
 
         Parameters
         ----------
-        name : str
+        name : `str`
             The name of the column.
-        __type : type[T]
+        __type : `type` [`T`]
             The Python type of the column's values.
 
         Returns
         -------
-        TableColumn[T]
+        :class:`sl3aio.table.TableColumn` [`T`]
             A TableColumn instance representing the column in the database.
 
-        Note
-        ----
-        If a Parser is not found for the given type, 'TEXT' is used as the default type.
+        .. note::
+            If a Parser wasn't found for the given type, ``'TEXT'`` is used as the default type.
         """
         return TableColumn(
             name,
@@ -658,69 +866,18 @@ class EasyTable[T]:
     """A class representing an easy-to-use selection interface for database tables.
 
     This class provides methods for common database operations such as inserting,
-    selecting, updating, and deleting records.
+    selecting, updating, and deleting records without having to open/close a connection
+    manually. See the :ref:`examples <easytable-examples>` for more details.
 
     Attributes
     ----------
-    table : Table[T], None, optional
+    table : :class:`sl3aio.table.Table` [`T`] | `None`, optional
         The underlying database table. Defaults to None.
 
-    Examples
-    --------
-    In the next example you can see the way to create a markup using EasyTable, convert it into a
-    working table and then access it using EasyTable functions.
-
-    .. code-block:: python
-
-        from sl3aio import EasyColumn, EasyTable, MemoryTable, TableColumnValueGenerator, EasySelector
-        from random import randint
-        from asyncio import run
-
-
-        # Custom value generator for user IDs. See TableColumnValueGenerator.
-        @TableColumnValueGenerator.from_function('userID')
-        def __generate_user_id() -> int:
-            return randint(1000000, 9999999)
-
-
-        # Define the structure of the Users table using EasyTable
-        # EasyTable[int | str] indicates that column values can be either int or str
-        class UsersTableMarkup(EasyTable[int | str]):
-            # Define columns with their types, properties, and constraints
-            # EasySelector[int] specifies that this column will contain integer values
-            id: EasySelector[int] = EasyColumn(TableColumnValueGenerator('userID'), primary=True, nullable=False)
-            # 'John Doe' is set as the default value for the name column
-            name: EasySelector[str] = 'John Doe'
-            # age column is marked as non-nullable, requiring a value for every record
-            age: EasySelector[int] = EasyColumn(nullable=False)
-            # email column is defined without additional constraints
-            email: EasySelector[str]
-
-
-        async def main():
-            # Create a MemoryTable instance based on the UsersTableMarkup
-            # This step converts the markup into actual table columns
-            columns = UsersTableMarkup.columns()
-            # Initialize an in-memory table named 'users' with the defined columns
-            table = MemoryTable('users', columns)
-            # Create a high-level interface for interacting with the users table
-            users_table = UsersTableMarkup(table)
-
-            # Insert a new user record into the table
-            # The 'id' field is automatically generated using the custom generator
-            await users_table.insert(name='Foo Bar', age=23, email='foobar@gmail.com')
-
-            # Demonstrate querying capabilities
-            # This line performs these operations:
-            # 1. Create a query condition: users_table.name == 'Foo Bar'
-            # 2. Select one record matching this condition: .select_one()
-            # 3. Access the 'email' field of the selected record
-            # 4. Print the result
-            print((await (users_table.name == 'Foo Bar').select_one()).email)
-
-
-        run(main())  # >>> foobar@gmail.com
-
+    See Also
+    - :class:`sl3aio.table.Table`
+    - :class:`sl3aio.table.TableRecord`
+    - :class:`sl3aio.table.TableSelectionPredicate`
     """
     table: Table[T]
 
@@ -730,7 +887,7 @@ class EasyTable[T]:
 
         Returns
         -------
-        tuple[TableColumn[T], ...]
+        `tuple` [:class:`sl3aio.table.TableColumn` [`T`], `...`]
             A tuple of TableColumn objects representing the table's columns.
         """
         columns = []
@@ -751,12 +908,12 @@ class EasyTable[T]:
 
         Parameters
         ----------
-        record : TableRecord[T]
+        record : :class:`sl3aio.table.TableRecord` [`T`]
             The record to check for.
 
         Returns
         -------
-        bool
+        `bool`
             True if the record is in the table, False otherwise.
         """
         async with self.table:
@@ -767,14 +924,14 @@ class EasyTable[T]:
 
         Parameters
         ----------
-        ignore_existing : bool, optional
+        ignore_existing : `bool`, optional
             If True, ignore if the record already exists. Defaults to False.
-        values : T
+        values : `T`
             The values to insert, specified as keyword arguments.
 
         Returns
         -------
-        TableRecord[T]
+        :class:`sl3aio.table.TableRecord` [`T`]
             The inserted record.
         """
         async with self.table:
@@ -785,14 +942,14 @@ class EasyTable[T]:
 
         Parameters
         ----------
-        ignore_existing : bool, optinal
+        ignore_existing : `bool`, optinal
             If True, ignore if the records already exist. Defaults to False.
-        values : dict[str, T]
+        values : `dict` [`str`, `T`]
             The values to insert, specified as dictionaries.
 
         Returns
         -------
-        AsyncIterator[TableRecord[T]]
+        `AsyncIterator` [:class:`sl3aio.table.TableRecord` [`T`]]
             An async iterator of the inserted records.
         """
         async with self.table:
@@ -804,12 +961,12 @@ class EasyTable[T]:
 
         Parameters
         ----------
-        predicate : TableSelectionPredicate[T], None, optional
+        predicate : :class:`sl3aio.table.TableSelectionPredicate` [`T`] | `None`, optional
             The selection predicate. Defaults to None.
 
         Returns
         -------
-        AsyncIterator[TableRecord[T]]
+        `AsyncIterator` [:class:`sl3aio.table.TableRecord` [`T`]]
             An async iterator of the selected records.
         """
         async with self.table:
@@ -821,12 +978,12 @@ class EasyTable[T]:
 
         Parameters
         ----------
-        predicate : TableSelectionPredicate[T], None, optional
+        predicate : :class:`sl3aio.table.TableSelectionPredicate` [`T`] | `None`, optional
             The selection predicate. Defaults to None.
 
         Returns
         -------
-        TableRecord[T], None
+        :class:`sl3aio.table.TableRecord` [`T`] | `None`
             The selected record, or None if no record matches the predicate.
         """
         return await anext(self.select(predicate), None)
@@ -836,12 +993,12 @@ class EasyTable[T]:
 
         Parameters
         ----------
-        predicate : TableSelectionPredicate[T], None, optional
+        predicate : :class:`sl3aio.table.TableSelectionPredicate` [`T`] | `None`, optional
             The selection predicate. Defaults to None.
 
         Returns
         -------
-        AsyncIterator[TableRecord[T]]
+        `AsyncIterator` [:class:`sl3aio.table.TableRecord` [`T`]]
             An async iterator of the removed records.
         """
         async with self.table:
@@ -853,7 +1010,7 @@ class EasyTable[T]:
 
         Parameters
         ----------
-        predicate : TableSelectionPredicate[T], None, optional
+        predicate : :class:`sl3aio.table.TableSelectionPredicate` [`T`] | `None`, optional
             The selection predicate. Defaults to None.
         """
         async for _ in self.pop(predicate):
@@ -864,12 +1021,12 @@ class EasyTable[T]:
 
         Parameters
         ----------
-        predicate : TableSelectionPredicate[T], None, optional
+        predicate : :class:`sl3aio.table.TableSelectionPredicate` [`T`] | `None`, optional
             The selection predicate. Defaults to None.
 
         Returns
         -------
-        TableRecord[T], None
+        :class:`sl3aio.table.TableRecord` [`T`] | `None`
             The deleted record, or None if no record matches the predicate.
         """
         return await anext(self.pop(predicate), None)
@@ -879,14 +1036,14 @@ class EasyTable[T]:
 
         Parameters
         ----------
-        predicate : TableSelectionPredicate[T], None, optional
+        predicate : :class:`sl3aio.table.TableSelectionPredicate` [`T`] | `None`, optional
             The selection predicate. Defaults to None.
-        to_update : T
+        to_update : `T`
             The values to update, specified as keyword arguments.
 
         Returns
         -------
-        AsyncIterator[TableRecord[T]]
+        `AsyncIterator` [:class:`sl3aio.table.TableRecord` [`T`]]
             An async iterator of the updated records.
         """
         async with self.table:
@@ -898,9 +1055,9 @@ class EasyTable[T]:
 
         Parameters
         ----------
-        predicate : TableSelectionPredicate[T], None, optional
+        predicate : :class:`sl3aio.table.TableSelectionPredicate` [`T`] | `None`, optional
             The selection predicate. Defaults to None.
-        to_update : T
+        to_update : `T`
             The values to update, specified as keyword arguments.
         """
         async for _ in self.updated(predicate, **to_update):
@@ -911,14 +1068,14 @@ class EasyTable[T]:
 
         Parameters
         ----------
-        predicate : TableSelectionPredicate[T], None, optional
+        predicate : :class:`sl3aio.table.TableSelectionPredicate` [`T`] | `None`, optional
             The selection predicate. Defaults to None.
-        to_update : T
+        to_update : `T`
             The values to update, specified as keyword arguments.
 
         Returns
         -------
-        TableRecord[T], None
+        :class:`sl3aio.table.TableRecord` [`T`], `None`
             The updated record, or None if no record matches the predicate.
         """
         return await anext(self.updated(predicate, **to_update), None)
@@ -928,12 +1085,12 @@ class EasyTable[T]:
 
         Parameters
         ----------
-        name : str
+        name : `str`
             The name of the attribute.
 
         Returns
         -------
-        EasySelector[T]
+        :class:`EasySelector` [`T`]
             An EasySelector instance for the specified attribute.
         """
         return getattr(EasySelector(self.table), name)
