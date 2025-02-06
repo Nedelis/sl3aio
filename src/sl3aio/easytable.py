@@ -84,6 +84,15 @@ Examples
     # Calling current value:
     selector(...)
 
+    # Also, almost every selector operator, that takes 2 values, can be applied to 2 selectors:
+    selector1 + selector2
+    selector1 == selector2
+    selector1.and_(selector2)
+    selector1 in selector2
+    # ... and so on. This will apply selector2 on the record, that was on the start of the
+    # selector1 and then apply operator on the current value of selector1 and result of the
+    # selector2.
+
 - Here is an example of how to use the EasySelector class:
 
 .. code-block:: python
