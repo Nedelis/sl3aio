@@ -174,29 +174,25 @@ class Parser[T]:
     Automates the registration of converters and adapters in sqlite3. Provides
     convinient access to the already registered parsers.
 
-    Attributes
-    ----------
-    instances : `set` [:class:`Parsable`]
-        Container for all of the parsers that were created.
-    types : `set` [`type` [`T`]]
-        Set of types corresponding to the parser. Must be at least one type in this set!
-    typenames : `set` [`str`]
-        Set of names corresponding to the parser. Must be at least one type name in this set!
-    loads : `Callable` [[`bytes`], `T`]
-        Method to parse a data from bytes.
-    dumps : `Callable` [[`T`], :class:`Parsable` | :class:`DefaultDataType`]
-        Method to convert an object to the object of the allowed type, listed in :func:`allowed_types()`.
-
+    .. attention::
+        Every single parser must have at least one supported type and at least one
+        supported typename.
+        
     See Also
     --------
     - :class:`Parsable`  
     - :class:`BuiltinParsers`
     """
     instances: ClassVar[set[Self]] = set()
+    """Container for all of the parsers that were created."""
     types: set[type[T]]
+    """Set of types corresponding to the parser."""
     _typenames: set[str]
+    """Set of names corresponding to the parser."""
     loads: Callable[[bytes], T] = field(repr=False)
+    """Method to parse a data from bytes."""
     dumps: Callable[[T], Parsable | DefaultDataType] = field(repr=False)
+    """Method to convert an object to the object of the allowed type, listed in :func:`allowed_types()`."""
 
     @property
     def typenames(self) -> set[str]:
@@ -305,39 +301,11 @@ class Parser[T]:
 class BuiltinParsers:
     """Container for default and some extra parsers.
 
-    Attributes
-    ----------
-    BLOB : :class:`Parser` [`bytes`]
-        Parser for binary data.
-    INT : :class:`Parser` [`int`]
-        Parser for integers.
-    REAL : :class:`Parser` [`float`]
-        Parser for floating-point and real numbers.
-    TEXT : :class:`Parser` [`str`]
-        Parser for strings.
-    BOOL : :class:`Parser` [`bool`]
-        Parser for boolean values.
-    SET : :class:`Parser` [`set`]
-        Parser for python sets.
-    LIST : :class:`Parser` [`list`]
-        Parser for python lists.
-    TUPLE : :class:`Parser` [`tuple`]
-        Parser for python tuples.
-    DICT : :class:`Parser` [`dict`]
-        Parser for python dictionaries.
-    JSON : :class:`Parser` [`dict` | `list`]
-        Parser for both python dictionaries and lists (AKA JSON objects).
-    TIME : :class:`Parser` [`time`]
-        Parser for time in one of the `iso 8601 <https://en.wikipedia.org/wiki/ISO_8601>`_ formats.
-    DATE : :class:`Parser` [`date`]
-        Parser for date in `iso 8601 <https://en.wikipedia.org/wiki/ISO_8601>`_ format.
-    DATETIME : :class:`Parser` [`datetime`]
-        Parser for date and time in `iso 8601 <https://en.wikipedia.org/wiki/ISO_8601>`_ format.
-
-    .. important::
+    .. attention::
         Do not registrate ``BLOB``, ``INT``, ``REAL`` and ``TEXT`` parsers using
         their's ``register()`` method.
 
+    .. attention::
         Before using ``BOOL``, ``SET``, ``LIST``, ``TUPLE``, ``DICT``, ``JSON``, ``TIME``,
         ``DATE`` and ``DATETIME`` parsers, you must call :meth:`BuiltinParsers.init()` method.
     
@@ -347,18 +315,31 @@ class BuiltinParsers:
     - :class:`Parsable`
     """
     BLOB: ClassVar[Parser[bytes]] = Parser({bytes}, {'BLOB', 'BYTES'}, bytes, bytes)
+    """Parser for binary data."""
     INT: ClassVar[Parser[int]] = Parser({int}, {'INTEGER', 'INT'}, int, int)
+    """Parser for integers."""
     REAL: ClassVar[Parser[float]] = Parser({float}, {'REAL', 'FLOAT'}, float, float)
+    """Parser for floating-point and real numbers."""
     TEXT: ClassVar[Parser[str]] = Parser({str}, {'TEXT', 'CHAR', 'VARCHAR'}, str, str)
+    """Parser for strings."""
     BOOL: ClassVar[Parser[bool]]
+    """Parser for boolean values."""
     SET: ClassVar[Parser[set]]
+    """Parser for python sets."""
     LIST: ClassVar[Parser[list]]
+    """Parser for python lists."""
     TUPLE: ClassVar[Parser[tuple]]
+    """Parser for python tuples."""
     DICT: ClassVar[Parser[dict]]
+    """Parser for python dictionaries."""
     JSON: ClassVar[Parser[dict | list]]
+    """Parser for both python dictionaries and lists (JSON objects)."""
     TIME: ClassVar[Parser[time]]
+    """Parser for time in one of the `iso 8601 <https://en.wikipedia.org/wiki/ISO_8601>`_ formats."""
     DATE: ClassVar[Parser[date]]
+    """Parser for date in `iso 8601 <https://en.wikipedia.org/wiki/ISO_8601>`_ format."""
     DATETIME: ClassVar[Parser[datetime]]
+    """Parser for date and time in `iso 8601 <https://en.wikipedia.org/wiki/ISO_8601>`_ format."""
 
     @staticmethod
     def init() -> None:

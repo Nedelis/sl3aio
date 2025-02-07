@@ -202,7 +202,7 @@ from typing import Any, Self, Concatenate, get_args
 from .dataparser import Parser
 from .table import Table, TableColumn, TableRecord, TableSelectionPredicate, TableColumnValueGenerator
 
-__all__ = ['EasySelector', 'EasyColumn', 'EasyTable', 'default_selector']
+__all__ = ['default_selector', 'EasySelector', 'EasyColumn', 'EasyTable']
 
 
 def default_selector(previous, _: TableRecord) -> tuple[True, Any]:
@@ -237,19 +237,24 @@ class EasySelector[T]:
     Attributes
     ----------
     table : :class:`sl3aio.table.Table` [`T`] | `None`, optional
-        The database table to operate on. Defaults to None.
+        
     _selector : `Callable` [[`Any`, :class:`sl3aio.table.TableRecord` [`T`]], `tuple` [`bool`, `Any`]], optional
-        The selector function. Defaults to :func:`default_selector`
+        
     
     See Also
     --------
     - :class:`sl3aio.table.TableSelectionPredicate`
     """
     table: Table[T] | None = None
-    _selector: Callable[[Any, TableRecord[T]], tuple[bool, Any]] = default_selector
+    """The database table to operate on. Optional, defaults to `None`."""
+    selector: Callable[[Any, TableRecord[T]], tuple[bool, Any]] = default_selector
+    """The selector function. Optional, defaults to :func:`default_selector`
+    
+    .. attention::
+        Change this field only if you know what you are doing.
+    """
 
-    @property
-    def predicate(self) -> TableSelectionPredicate[T]:
+    def as_predicate(self) -> TableSelectionPredicate[T]:
         """Creates a predicate function based on the current selector.
 
         Returns
@@ -290,7 +295,7 @@ class EasySelector[T]:
         `tuple` [`bool`, `Any`]
             A tuple containing a boolean indicating if the selector matched, and the result of the selector application.
         """
-        return self._selector(record, record)
+        return self.selector(record, record)
 
     async def select(self, table: Table[T] | None = None) -> AsyncIterator[TableRecord[T]]:
         """Selects records from the table based on the current selector.
@@ -304,9 +309,13 @@ class EasySelector[T]:
         -------
         `AsyncIterator` [:class:`sl3aio.table.TableRecord` [`T`]]
             An async iterator of selected records.
+        
+        See Also
+        --------
+        - :meth:`EasySelector.select_one`
         """
         async with (table or self.table) as table:
-            async for record in table.select(self.predicate):
+            async for record in table.select(self.as_predicate()):
                 yield record
     
     async def select_one(self, table: Table[T] | None = None) -> TableRecord[T] | None:
@@ -321,6 +330,10 @@ class EasySelector[T]:
         -------
         :class:`sl3aio.table.TableRecord` [`T`] | `None`
             The selected record, or None if no record matches.
+        
+        See Also
+        --------
+        - :meth:`EasySelector.select`
         """
         return await anext(self.select(table), None)
     
@@ -336,9 +349,14 @@ class EasySelector[T]:
         -------
         `AsyncIterator` [:class:`sl3aio.table.TableRecord` [`T`]]
             An async iterator of popped records.
+        
+        See Also
+        --------
+        - :meth:`EasySelector.delete`
+        - :meth:`EasySelector.delete_one`
         """
         async with (table or self.table) as table:    
-            async for record in table.pop(self.predicate):
+            async for record in table.pop(self.as_predicate()):
                 yield record
     
     async def delete(self, table: Table[T] | None = None) -> None:
@@ -348,6 +366,11 @@ class EasySelector[T]:
         ----------
         table : :class:`sl3aio.table.Table` [`T`] | `None`, optional
             The table to delete from. If None, uses the pinned table. Defaults to None.
+        
+        See Also
+        --------
+        - :meth:`EasySelector.pop`
+        - :meth:`EasySelector.delete_one`
         """
         async for _ in self.pop(table):
             pass
@@ -364,55 +387,75 @@ class EasySelector[T]:
         -------
         :class:`sl3aio.table.TableRecord` [`T`] | `None`
             The deleted record, or None if no record matches.
+        
+        See Also
+        --------
+        - :meth:`EasySelector.pop`
+        - :meth:`EasySelector.delete`
         """
         return await anext(self.pop(table), None)
     
     async def updated(self, table: Table[T], **to_update: T) -> AsyncIterator[TableRecord[T]]:
-        """Updates records in the table that match the current selector.
+        r"""Updates records in the table that match the current selector.
 
         Parameters
         ----------
         table : :class:`sl3aio.table.Table` [`T`]
             The table to update.
-        to_update : `T`
+        \*\*to_update : `T`
             Keyword arguments specifying the fields to update and their new values.
 
         Returns
         -------
         `AsyncIterator` [:class:`sl3aio.table.TableRecord` [`T`]]
             An async iterator of updated records.
+        
+        See Also
+        --------
+        - :meth:`EasySelector.update`
+        - :meth:`EasySelector.update_one`
         """
         async with (table or self.table) as table:
-            async for record in table.updated(self.predicate, **to_update):
+            async for record in table.updated(self.as_predicate(), **to_update):
                 yield record
 
     async def update(self, table: Table[T], **to_update: T) -> None:
-        """Updates all records in the table that match the current selector.
+        r"""Updates all records in the table that match the current selector.
 
         Parameters
         ----------
         table : :class:`sl3aio.table.Table` [`T`]
             The table to update.
-        to_update : `T`
+        \*\*to_update : `T`
             Keyword arguments specifying the fields to update and their new values.
+        
+        See Also
+        --------
+        - :meth:`EasySelector.updated`
+        - :meth:`EasySelector.update_one`
         """
         async for _ in self.updated(table, **to_update):
             pass
 
     async def update_one(self, table: Table[T], **to_update: T) -> TableRecord[T] | None:
-        """Updates a single record in the table that matches the current selector.
+        r"""Updates a single record in the table that matches the current selector.
 
         Parameters
         ----------
         table : :class:`sl3aio.table.Table` [`T`]
             The table to update.
-        to_update : `T`
+        \*\*to_update : `T`
             Keyword arguments specifying the fields to update and their new values.
 
         Returns
         -------
         :class:`sl3aio.table.TableRecord` [`T`] | `None`
             The updated record, or None if no record matches.
+        
+        See Also
+        --------
+        - :meth:`EasySelector.updated`
+        - :meth:`EasySelector.update`
         """
         return await anext(self.updated(table, **to_update), None)
 
@@ -431,12 +474,12 @@ class EasySelector[T]:
         """
         def __selector(previous, record: TableRecord[T]) -> tuple[bool, Any]:
             nonlocal self, selector
-            ok, obj = self._selector(previous, record)
+            ok, obj = self.selector(previous, record)
             return selector(ok, obj, record)
-        return replace(self, _selector=__selector)
+        return replace(self, selector=__selector)
 
     def pass_into[**P](self, func: Callable[Concatenate[Any, P], Any], *args: P.args, key_or_pos: str | int = 0, **kwargs: P.kwargs) -> Self:
-        """Passes the result of the current selector into a function.
+        r"""Passes the result of the current selector into a function.
 
         Parameters
         ----------
@@ -444,9 +487,9 @@ class EasySelector[T]:
             The function to pass the result into.
         key_or_pos : `int` | `str`, optional
             Argument name or position in the function's signature.  Defaults to 0.
-        args : `P.args`
+        \*args : `P.args`
             Positional arguments to pass to the function.
-        kwargs : `P.kwargs`
+        \*\*kwargs : `P.kwargs`
             Keyword arguments to pass to the function.
 
         Returns
@@ -457,14 +500,14 @@ class EasySelector[T]:
         if isinstance(key_or_pos, str):
             def __selector(previous, record: TableRecord[T]) -> tuple[bool, Any]:
                 nonlocal self, func, key_or_pos, args, kwargs
-                ok, obj = self._selector(previous, record)
+                ok, obj = self.selector(previous, record)
                 return (True, func(*args, **(kwargs | {key_or_pos: obj}))) if ok else (False, obj)
         else:
             def __selector(previous, record: TableRecord[T]) -> tuple[bool, Any]:
                 nonlocal self, func, key_or_pos, args, kwargs
-                ok, obj = self._selector(previous, record)
+                ok, obj = self.selector(previous, record)
                 return (True, func(*args[:key_or_pos], obj, *args[key_or_pos + 1:], **kwargs)) if ok else (False, obj)
-        return replace(self, _selector=__selector)
+        return replace(self, selector=__selector)
     
     def set_ok(self, value: bool = True) -> Self:
         """Sets the 'ok' status of the selector to a fixed value.
@@ -481,8 +524,8 @@ class EasySelector[T]:
         """
         def __selector(previous, record: TableRecord[T]) -> tuple[bool, Any]:
             nonlocal self, value
-            return value, self._selector(previous, record)[1]
-        return replace(self, _selector=__selector)
+            return value, self.selector(previous, record)[1]
+        return replace(self, selector=__selector)
 
     def is_(self, other: Any | Self) -> Self:
         """Checks if the result of the current selector is a given object.
@@ -500,14 +543,14 @@ class EasySelector[T]:
         if isinstance(other, self.__class__):
             def __selector(previous, record: TableRecord[T]) -> tuple[bool, Any]:
                 nonlocal self, other
-                ok, obj = self._selector(previous, record)
+                ok, obj = self.selector(previous, record)
                 _other = other.apply(record)
                 return (True, True) if ok and _other[0] and obj is _other[1] else (False, False)
         def __selector(previous, record: TableRecord[T]) -> tuple[bool, Any]:
             nonlocal self, other
-            ok, obj = self._selector(previous, record)
+            ok, obj = self.selector(previous, record)
             return (True, True) if ok and obj is other else (False, False)
-        return replace(self, _selector=__selector)
+        return replace(self, selector=__selector)
     
     def is_not_(self, other: Any | Self) -> Self:
         """Checks if the result of the current selector is not a given object.
@@ -525,14 +568,14 @@ class EasySelector[T]:
         if isinstance(other, self.__class__):
             def __selector(previous, record: TableRecord[T]) -> tuple[bool, Any]:
                 nonlocal self, other
-                ok, obj = self._selector(previous, record)
+                ok, obj = self.selector(previous, record)
                 _other = other.apply(record)
                 return (True, True) if ok and _other[0] and obj is not _other[1] else (False, False)
         def __selector(previous, record: TableRecord[T]) -> tuple[bool, Any]:
             nonlocal self, other
-            ok, obj = self._selector(previous, record)
+            ok, obj = self.selector(previous, record)
             return (True, True) if ok and obj is not other else (False, False)
-        return replace(self, _selector=__selector)
+        return replace(self, selector=__selector)
 
     def in_(self, container: Container | Self) -> Self:
         """Checks if the result of the current selector is in a container.
@@ -551,9 +594,9 @@ class EasySelector[T]:
             return self in container
         def __selector(previous, record: TableRecord[T]) -> tuple[bool, Any]:
             nonlocal self, container
-            ok, obj = self._selector(previous, record)
+            ok, obj = self.selector(previous, record)
             return (True, True) if ok and obj in container else (False, False)
-        return replace(self, _selector=__selector)
+        return replace(self, selector=__selector)
     
     def and_(self, other: Self) -> Self:
         """Combines the current selector with another using logical AND.
@@ -570,13 +613,13 @@ class EasySelector[T]:
         """
         def __selector(previous, record: TableRecord[T]) -> tuple[bool, Any]:
             nonlocal self, other
-            ok, obj = self._selector(previous, record)
+            ok, obj = self.selector(previous, record)
             if not ok:
                 return False, obj
             elif not (_other := other.apply(record))[0]:
                 return False, _other[1]
             return True, _other[1]
-        return replace(self, _selector=__selector)
+        return replace(self, selector=__selector)
     
     def or_(self, other: Self) -> Self:
         """Combines the current selector with another using logical OR.
@@ -593,13 +636,13 @@ class EasySelector[T]:
         """
         def __selector(previous, record: TableRecord[T]) -> tuple[bool, Any]:
             nonlocal self, other
-            ok, obj = self._selector(previous, record)
+            ok, obj = self.selector(previous, record)
             if ok:
                 return True, obj
             elif (_other := other.apply(record))[0]:
                 return True, _other[1]
             return False, _other[1]
-        return replace(self, _selector=__selector)
+        return replace(self, selector=__selector)
     
     def not_(self) -> Self:
         """Negates the current selector.
@@ -611,8 +654,8 @@ class EasySelector[T]:
         """
         def __selector(previous, record: TableRecord[T]) -> tuple[bool, Any]:
             nonlocal self
-            return (True, previous) if not self._selector(previous, record)[0] else (False, previous)
-        return replace(self, _selector=__selector)
+            return (True, previous) if not self.selector(previous, record)[0] else (False, previous)
+        return replace(self, selector=__selector)
     
     def __getattr__(self, name: str) -> Self:
         return self._binary_operator(name, getattr)
@@ -624,13 +667,27 @@ class EasySelector[T]:
         return self._unary_operator(reversed)
     
     def __call__(self, *args, **kwargs) -> Self:
+        r"""Call the current selected value with the given arguments.
+
+        Parameters
+        ----------
+        \*args : `tuple`
+            Arguments to be passed to the call.
+        \*\*kwargs : `dict`
+            Keyword arguments to be passed to the call.
+
+        Returns
+        -------
+        :class:`EasySelector`
+            A new EasySelector instance representing the result of calling current value.
+        """
         def __selector(previous, record: TableRecord[T]) -> tuple[bool, Any]:
             nonlocal self, args, kwargs
-            ok, obj = self._selector(previous, record)
+            ok, obj = self.selector(previous, record)
             if not ok or (isinstance(result := obj(*args, **kwargs), bool) and not result):
                 return False, previous
             return True, result
-        return replace(self, _selector=__selector)
+        return replace(self, selector=__selector)
 
     def __eq__(self, other: Any | Self) -> Self:
         return self._comparaison_operator(other, operator.eq)
@@ -771,16 +828,16 @@ class EasySelector[T]:
         if isinstance(other, self.__class__):
             def __selector(previous, record: TableRecord[T]) -> tuple[bool, Any]:
                 nonlocal self, other, __operator
-                ok, obj = self._selector(previous, record)
+                ok, obj = self.selector(previous, record)
                 if ok and (_other := other.apply(record))[0]:
                     return True, __operator(obj, _other[1])
                 return False, obj
         else:
             def __selector(previous, record: TableRecord[T]) -> tuple[bool, Any]:
                 nonlocal self, other, __operator
-                ok, obj = self._selector(previous, record)
+                ok, obj = self.selector(previous, record)
                 return (True, __operator(obj, other)) if ok else (False, obj)
-        return replace(self, _selector=__selector)
+        return replace(self, selector=__selector)
     
     def _rbinary_operator(self, other: Any | Self, __operator: Callable[[Any, Any], Any]) -> Self:
         def __roperator(a, b):
@@ -791,23 +848,23 @@ class EasySelector[T]:
     def _unary_operator(self, __operator: Callable[[Any], Any]) -> Self:
         def __selector(previous, record: TableRecord[T]) -> tuple[bool, Any]:
             nonlocal self, __operator
-            ok, obj = self._selector(previous, record)
+            ok, obj = self.selector(previous, record)
             return (True, __operator(obj)) if ok else (False, obj)
-        return replace(self, _selector=__selector)
+        return replace(self, selector=__selector)
     
     def _comparaison_operator(self, other: Any | Self, comparator: Callable[[Any, Any], bool]) -> Self:
         if isinstance(other, self.__class__):
             def __selector(previous, record: TableRecord[T]) -> tuple[bool, Any]:
                 nonlocal self, other, comparator
-                ok, obj = self._selector(previous, record)
+                ok, obj = self.selector(previous, record)
                 _other = other.apply(record)
                 return (True, True) if ok and _other[0] and comparator(obj, _other[1]) else (False, False)
         else:
             def __selector(previous, record: TableRecord[T]) -> tuple[bool, Any]:
                 nonlocal self, other, comparator
-                ok, obj = self._selector(previous, record)
+                ok, obj = self.selector(previous, record)
                 return (True, True) if ok and comparator(obj, other) else (False, False)
-        return replace(self, _selector=__selector)
+        return replace(self, selector=__selector)
     
 
 @dataclass(slots=True, frozen=True)
@@ -817,27 +874,22 @@ class EasyColumn[T]:
     This class provides a simplified way to define columns for database tables,
     including options for default values, primary key, uniqueness, and nullability.
 
-    Attributes
-    ----------
-    default : `T` | :class:`sl3aio.table.TableColumnValueGenerator` [`T`] | `None`, optional
-        The default value for the column. Can be a static value, a TableColumnValueGenerator, or None.
-        Defaults to None.
-    primary : `bool`, optional
-        Indicates if this column is a primary key. Defaults to False.
-    unique : `bool`, optional
-        Indicates if this column should have unique values. Defaults to False.
-    nullable : `bool`, optional
-        Indicates if this column can contain NULL values. Defaults to True.
-
     See Also
     --------
     - :class:`sl3aio.table.TableColumnValueGenerator`
     - :class:`sl3aio.table.TableColumn`
     """
     default: T | TableColumnValueGenerator[T] | None = None
+    """
+    The default value for the column. Can be a static value, a TableColumnValueGenerator, or None.
+    Defaults to `None`.
+    """
     primary: bool = False
+    """Indicates if this column is a primary key. Defaults to `False`."""
     unique: bool = False
+    """Indicates if this column should have unique values. Defaults to `False`."""
     nullable: bool = True
+    """Indicates if this column can contain NULL values. Defaults to `True`."""
 
     def to_column(self, name: str, __type: type[T]) -> TableColumn[T]:
         """Converts the EasyColumn instance to a TableColumn instance.
@@ -878,17 +930,13 @@ class EasyTable[T]:
     selecting, updating, and deleting records without having to open/close a connection
     manually. See the :ref:`examples <easytable-examples>` for more details.
 
-    Attributes
-    ----------
-    table : :class:`sl3aio.table.Table` [`T`] | `None`, optional
-        The underlying database table. Defaults to None.
-
     See Also
     - :class:`sl3aio.table.Table`
     - :class:`sl3aio.table.TableRecord`
     - :class:`sl3aio.table.TableSelectionPredicate`
     """
     table: Table[T]
+    """The underlying database table."""
 
     @classmethod
     def columns(cls) -> tuple[TableColumn[T], ...]:
@@ -912,6 +960,17 @@ class EasyTable[T]:
             columns.append(value.to_column(column_name, get_args(column_type)[0]))
         return tuple(columns)
     
+    async def length(self) -> int:
+        """Get the number of records in the table.
+
+        Returns
+        -------
+        `int`
+            The number of records in the table.
+        """
+        async with self.table:
+            return await self.table.length()
+    
     async def contains(self, record: TableRecord[T]) -> bool:
         """Check if the table contains a specific record.
 
@@ -929,37 +988,45 @@ class EasyTable[T]:
             return await self.table.contains(record)
         
     async def insert(self, ignore_existing: bool = False, **values: T) -> TableRecord[T]:
-        """Insert a new record into the table.
+        r"""Insert a new record into the table.
 
         Parameters
         ----------
         ignore_existing : `bool`, optional
             If True, ignore if the record already exists. Defaults to False.
-        values : `T`
+        \*\*values : `T`
             The values to insert, specified as keyword arguments.
 
         Returns
         -------
         :class:`sl3aio.table.TableRecord` [`T`]
             The inserted record.
+
+        See Also
+        --------
+        - :meth:`EasyTable.insert_many`
         """
         async with self.table:
             return await self.table.insert(ignore_existing, **values)
         
     async def insert_many(self, ignore_existing: bool = False, *values: dict[str, T]) -> AsyncIterator[TableRecord[T]]:
-        """Insert multiple records into the table.
+        r"""Insert multiple records into the table.
 
         Parameters
         ----------
         ignore_existing : `bool`, optinal
             If True, ignore if the records already exist. Defaults to False.
-        values : `dict` [`str`, `T`]
+        \*\*values : `dict` [`str`, `T`]
             The values to insert, specified as dictionaries.
 
         Returns
         -------
         `AsyncIterator` [:class:`sl3aio.table.TableRecord` [`T`]]
             An async iterator of the inserted records.
+        
+        See Also
+        --------
+        - :meth:`EasyTable.insert`
         """
         async with self.table:
             async for record in self.table.insert_many(ignore_existing, *values):
@@ -977,6 +1044,10 @@ class EasyTable[T]:
         -------
         `AsyncIterator` [:class:`sl3aio.table.TableRecord` [`T`]]
             An async iterator of the selected records.
+        
+        See Also
+        --------
+        - :meth:`EasyTable.select_one`
         """
         async with self.table:
             async for record in self.table.select(predicate):
@@ -994,6 +1065,10 @@ class EasyTable[T]:
         -------
         :class:`sl3aio.table.TableRecord` [`T`] | `None`
             The selected record, or None if no record matches the predicate.
+        
+        See Also
+        --------
+        - :meth:`EasyTable.select`
         """
         return await anext(self.select(predicate), None)
     
@@ -1009,6 +1084,11 @@ class EasyTable[T]:
         -------
         `AsyncIterator` [:class:`sl3aio.table.TableRecord` [`T`]]
             An async iterator of the removed records.
+
+        See Also
+        --------
+        - :meth:`EasyTable.delete`
+        - :meth:`EasyTable.delete_one`
         """
         async with self.table:
             async for record in self.table.pop(predicate):
@@ -1021,6 +1101,11 @@ class EasyTable[T]:
         ----------
         predicate : :class:`sl3aio.table.TableSelectionPredicate` [`T`] | `None`, optional
             The selection predicate. Defaults to None.
+        
+        See Also
+        --------
+        - :meth:`EasyTable.pop`
+        - :meth:`EasyTable.delete_one`
         """
         async for _ in self.pop(predicate):
             pass
@@ -1037,55 +1122,75 @@ class EasyTable[T]:
         -------
         :class:`sl3aio.table.TableRecord` [`T`] | `None`
             The deleted record, or None if no record matches the predicate.
+        
+        See Also
+        --------
+        - :meth:`EasyTable.pop`
+        - :meth:`EasyTable.delete`
         """
         return await anext(self.pop(predicate), None)
     
     async def updated(self, predicate: TableSelectionPredicate[T] | None = None, **to_update: T) -> AsyncIterator[TableRecord[T]]:
-        """Update records in the table based on a predicate and return the updated records.
+        r"""Update records in the table based on a predicate and return the updated records.
 
         Parameters
         ----------
         predicate : :class:`sl3aio.table.TableSelectionPredicate` [`T`] | `None`, optional
             The selection predicate. Defaults to None.
-        to_update : `T`
+        \*\*to_update : `T`
             The values to update, specified as keyword arguments.
 
         Returns
         -------
         `AsyncIterator` [:class:`sl3aio.table.TableRecord` [`T`]]
             An async iterator of the updated records.
+        
+        See Also
+        --------
+        - :meth:`EasyTable.update`
+        - :meth:`EasyTable.update_one`
         """
         async with self.table:
             async for record in self.table.updated(predicate, **to_update):
                 yield record
 
     async def update(self, predicate: TableSelectionPredicate[T] | None = None, **to_update: T) -> None:
-        """Update records in the table based on a predicate.
+        r"""Update records in the table based on a predicate.
 
         Parameters
         ----------
         predicate : :class:`sl3aio.table.TableSelectionPredicate` [`T`] | `None`, optional
             The selection predicate. Defaults to None.
-        to_update : `T`
+        \*\*to_update : `T`
             The values to update, specified as keyword arguments.
+        
+        See Also
+        --------
+        - :meth:`EasyTable.updated`
+        - :meth:`EasyTable.update_one`
         """
         async for _ in self.updated(predicate, **to_update):
             pass
 
     async def update_one(self, predicate: TableSelectionPredicate[T] | None = None, **to_update: T) -> TableRecord[T] | None:
-        """Update a single record in the table based on a predicate.
+        r"""Update a single record in the table based on a predicate.
 
         Parameters
         ----------
         predicate : :class:`sl3aio.table.TableSelectionPredicate` [`T`] | `None`, optional
             The selection predicate. Defaults to None.
-        to_update : `T`
+        \*\*to_update : `T`
             The values to update, specified as keyword arguments.
 
         Returns
         -------
         :class:`sl3aio.table.TableRecord` [`T`], `None`
             The updated record, or None if no record matches the predicate.
+        
+        See Also
+        --------
+        - :meth:`EasyTable.updated`
+        - :meth:`EasyTable.update`
         """
         return await anext(self.updated(predicate, **to_update), None)
 
