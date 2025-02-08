@@ -29,8 +29,7 @@ Other Components
 .. Warning::
     Never create table instances outside of an asynchronous context (except when
     you've re-implemented their logic). This is because when creating a table, it
-    needs an active event loop. Instead of creating instances, you can use
-    lazy initialization:
+    needs an active event loop. You can use lazy initialization instead:
 
     .. code-block:: python
 
