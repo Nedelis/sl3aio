@@ -1,23 +1,146 @@
 """
+sl3aio.table
+============
+
 This module provides a set of classes for working with database tables in an object-oriented manner.
 
 The module includes classes for representing table records, columns, and different types of tables
 (memory-based and SQL-based). It also provides utility classes for generating column values and
-handling table selection predicates.
-
-Classes
--------
-1. TableRecord: Represents a single record in a table.
-2. TableSelectionPredicate: Protocol for defining predicates used in table selection operations.
-3. TableColumnValueGenerator: Generates values for table columns.
-4. TableColumn: Represents a column in a table.
-5. Table: Abstract base class for all table types.
-6. MemoryTable: In-memory implementation of a table.
-7. SqlTable: Abstract base class for SQL-based tables.
-8. SolidTable: Concrete implementation of an SQL-based table.
+handling table selection predicates and offers an abstraction layer that allows for consistent
+interaction with different types of tables.
 
 This module is designed to work with asynchronous operations and provides a flexible and
 extensible framework for database operations.
+
+Key Components
+--------------
+- :class:`TableColumn`: Represents a column in a table.
+- :class:`TableColumnValueGenerator`: Generates values for table columns.
+- :class:`SolidTable`: Concrete implementation of SqlTable for interacting with SQLite databases.
+- :class:`MemoryTable`: Implementation of an in-memory table.
+- :class:`TableRecord`: Represents a single record in a table.
+
+Other Components
+----------------
+- :class:`TableSelectionPredicate`: Protocol for defining predicates used in table selection operations.
+- :class:`Table`: Abstract base class for all table types.
+- :class:`SqlTable`: Abstract base class for SQL-based tables.
+
+Usage Examples
+--------------
+- Creating and using a :class:`MemoryTable`:
+
+.. code-block:: python
+
+    from sl3aio.table import MemoryTable, TableColumn
+
+    # Define columns
+    id_column = TableColumn("id", "INTEGER", primary=True)
+    name_column = TableColumn("name", "TEXT", nullable=False)
+    age_column = TableColumn("age", "INTEGER", default=0)
+
+    # Create a MemoryTable
+    person_table = MemoryTable("persons", (id_column, name_column, age_column))
+
+    # Insert a record
+    await person_table.insert(id=1, name="Alice", age=30)
+
+    # Select records
+    async for record in person_table.select(lambda r: r.age > 25):
+        print(record.name, record.age)
+
+    # Update a record
+    await person_table.update(lambda r: r.id == 1, age=31)
+
+    # Delete a record
+    await person_table.delete(lambda r: r.name == "Alice")
+
+- Using a :class:`SolidTable` (SQLite):
+
+.. code-block:: python
+
+    from sl3aio.table import SolidTable, TableColumn
+    from sl3aio.executor import ConnectionManager
+
+    # Define columns
+    id_column = TableColumn("id", "INTEGER", primary=True)
+    title_column = TableColumn("title", "TEXT", nullable=False)
+    author_column = TableColumn("author", "TEXT", nullable=False)
+
+    # Create a ConnectionManager
+    conn_manager = ConnectionManager("path/to/database.db")
+
+    # Create a SolidTable
+    book_table = SolidTable("books", (id_column, title_column, author_column), conn_manager)
+
+    # Create the table in the database
+    await book_table.create()
+
+    # Insert a record
+    await book_table.insert(id=1, title="1984", author="George Orwell")
+
+    # Select records
+    async for record in book_table.select(lambda r: r.author == "George Orwell"):
+        print(record.title)
+
+    # Update a record
+    await book_table.update(lambda r: r.id == 1, title="Nineteen Eighty-Four")
+
+    # Delete a record
+    await book_table.delete(lambda r: r.title == "Nineteen Eighty-Four")
+
+    # Drop the table
+    await book_table.drop()
+
+- Using :class:`TableColumnValueGenerator`:
+
+.. code-block:: python
+
+    from sl3aio.table import TableColumnValueGenerator, TableColumn, SolidTable
+    from random import randint
+
+    # Define a generator for random IDs
+    @TableColumnValueGenerator.from_function("random_id")
+    def random_id():
+        return randint(1000, 9999)
+
+    # Create a column with the generator
+    id_column = TableColumn("id", "INTEGER", generator=TableColumnValueGenerator.get_by_name("random_id"))
+    name_column = TableColumn("name", "TEXT", nullable=False)
+
+    # Create a table with the generated column
+    user_table = SolidTable("users", (id_column, name_column), conn_manager)
+
+    # Insert a record (id will be generated automatically)
+    await user_table.insert(name="Bob")
+
+- Using :class:`TableSelectionPredicate`:
+
+.. code-block:: python
+
+    from sl3aio.table import TableSelectionPredicate
+
+    # Define a custom predicate
+    class AgeRangePredicate(TableSelectionPredicate):
+        def __init__(self, min_age: int, max_age: int):
+            self.min_age = min_age
+            self.max_age = max_age
+
+        async def __call__(self, record):
+            return self.min_age <= record.age <= self.max_age
+
+    # Use the custom predicate
+    age_range = AgeRangePredicate(25, 35)
+    async for record in person_table.select(age_range):
+        print(record.name, record.age)
+
+These examples demonstrate the basic usage of the main classes in this module. They cover creating tables,
+inserting, selecting, updating, and deleting records, as well as using custom generators and predicates.
+
+See Also
+--------
+- :mod:`sl3aio.easytable`: Convinient and easy interface to work with tables.
+- :mod:`sl3aio.executor`: Core module of this library.
 """
 from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass, field
@@ -53,6 +176,14 @@ class TableRecord[T](tuple[T, ...]):
     """Names of all columns in the table."""
     executor: ClassVar[Executor]
     """An executor for running operations on the record."""
+
+    def __new__(cls, *args: T, **kwargs: T) -> Self:
+        """Create a new instance of the record. Same as :meth:`TableRecord.make` but sync."""
+        params = dict(zip(cls.fields, args)) | kwargs
+        return super().__new__(
+            cls,
+            (params[column.name] if column.name in params else column.get_default() for column in cls.table.columns)
+        )
 
     @classmethod
     def make_subclass[T](cls, table: 'Table[T]', *columns: 'TableColumn[T]') -> type['TableRecord[T]']:
@@ -103,19 +234,11 @@ class TableRecord[T](tuple[T, ...]):
         :class:`TableRecord` [`T`]
             A new instance of the record.
         
-        .. note::
+        .. Note::
             You must provide values for every column in the table that can't be null and doesn't
             have a default value. 
         """
         return await cls.executor(cls, *args, **kwargs)
-
-    def __new__(cls, *args: T, **kwargs: T) -> Self:
-        """Create a new instance of the record. Same as :meth:`TableRecord.make` but sync."""
-        params = dict(zip(cls.fields, args)) | kwargs
-        return super().__new__(
-            cls,
-            (params[column.name] if column.name in params else column.get_default() for column in cls.table.columns)
-        )
 
     def asdict(self) -> dict[str, T]:
         """Convert the record to a dictionary.
@@ -193,6 +316,10 @@ class TableColumnValueGenerator[T]:
 
     This class is used to create generators for column values, which can be
     used as default values or for generating values during insert operations.
+    
+    See Also
+    --------
+    - :class:`TableColumn`
     """
     _instances: ClassVar[dict[str, Self]] = {}
     name: str
@@ -311,13 +438,14 @@ class TableColumn[T]:
     This class defines the properties of a table column, including its name,
     data type, and constraints.
 
-    .. note::
+    .. Note::
         If both the ``generator`` and the ``default`` parameters are specified,
         preference is given to ``generator``.
 
     See Also
     --------
     - :class:`TableColumnValueGenerator`
+    - :class:`Table`
     """
     name: str
     """The name of the column."""
@@ -350,7 +478,7 @@ class TableColumn[T]:
         :class:`TableColumn` [`T`]
             A new TableColumn instance.
 
-        .. note::
+        .. Note::
             Columns, that generated by sqlite using ``GENERATED`` keyword, won't be
             interpreted correctly. To make column generated, you need to create generator
             for it using the :class:`TableColumnValueGenerator` and then set column ``DEFAULT``
@@ -371,11 +499,11 @@ class TableColumn[T]:
         `str`
             The SQL definition of the column.
         
-        .. note::
+        .. Note::
             If column's typename is not present in :class:`sl3aio.parser.Parser` registry,
             it would be represented as ``TEXT``.
 
-        .. note::
+        .. Note::
             Columns with specified generator would have their ``DEFAULT`` value setted
             to ``"$Generated:generator_name"``.
         """
@@ -414,6 +542,13 @@ class Table[T](ABC):
 
     This class defines the common interface and functionality for different
     types of tables (e.g., in-memory tables, SQL tables).
+
+    See Also
+    --------
+    - :class:`TableColumn`
+    - :class:`TableRecord`
+    - :class:`MemoryTable`
+    - :class:`SolidTable`
     """
     name: str
     """The name of the table."""
@@ -434,7 +569,9 @@ class Table[T](ABC):
         return self._columns
 
     async def make_record(self, *args: T, **kwargs: T) -> TableRecord[T]:
-        r"""Create a new record for this table. For more details, see :meth:`TableRecord.make`.
+        r"""Create a new record for this table.
+        
+        For more details, see :meth:`TableRecord.make`.
 
         Parameters
         ----------
@@ -528,7 +665,10 @@ class Table[T](ABC):
 
     @abstractmethod
     def select(self, predicate: TableSelectionPredicate[T] | None = None) -> AsyncIterator[TableRecord[T]]:
-        """Select records from the table. If predicate isn't specified, yields the whole table.
+        """Select records from the table.
+        
+        .. Note::
+            If predicate isn't specified, yields the whole table.
 
         Parameters
         ----------
@@ -566,8 +706,11 @@ class Table[T](ABC):
     
     @abstractmethod
     def pop(self, predicate: TableSelectionPredicate[T] | None = None) -> AsyncIterator[TableRecord[T]]:
-        """Remove and return records from the table. If predicate isn't specified, pops the whole table.
+        """Remove and return records from the table.
 
+        .. Note::
+            If predicate isn't specified, yields the whole table and then clears it.
+        
         Parameters
         ----------
         predicate : :class:`TableSelectionPredicate` [`T`] | `None`, optional
@@ -585,7 +728,10 @@ class Table[T](ABC):
         """
 
     async def delete(self, predicate: TableSelectionPredicate[T] | None = None) -> None:
-        """Delete records from the table. If predicate isn't specified, clears the table.
+        """Delete records from the table.
+        
+        .. Note::
+            If predicate isn't specified, clears the table.
 
         Parameters
         ----------
@@ -622,8 +768,10 @@ class Table[T](ABC):
     
     @abstractmethod
     def updated(self, predicate: TableSelectionPredicate[T] | None = None, **to_update: T) -> AsyncIterator[TableRecord[T]]:
-        r"""Update records in the table and yield the updated records. If predicate isn't specified,
-        upadates every record.
+        r"""Update records in the table and yield the updated records.
+        
+        .. Note::
+            If predicate isn't specified, updates and yields every record.
 
         Parameters
         ----------
@@ -645,6 +793,9 @@ class Table[T](ABC):
 
     async def update(self, predicate: TableSelectionPredicate[T] | None = None, **to_update: T) -> None:
         r"""Update records in the table without yielding the updated records.
+
+        .. Note::
+            If predicate isn't specified, upadates every record.
 
         Parameters
         ----------
@@ -707,7 +858,31 @@ class Table[T](ABC):
 
 @dataclass(slots=True)
 class MemoryTable[T](Table[T]):
+    """A concrete implementation of :class:`Table` for interacting with in-memory databases.
+
+    This class provides methods for performing CRUD (Create, Read, Update, Delete) operations
+    on 'memory tables' (actually, just a python sets). It implements the abstract methods
+    defined in Table class.
+
+    Attributes
+    ----------
+    name : `str`
+        The name of the table.
+    _columns : `tuple` [:class:`TableColumn` [`T`], ...]
+        The columns of the table. This field is protected, use :obj:`Table.columns` instead.
+    _record_type : `type` [:class:`TableRecord` [`T`]]
+        The type used for records in this table.
+    _executor : :class:`sl3aio.executor.ConsistentExecutor`
+        A connection manager for executing SQL operations on the table.
+
+    See Also
+    --------
+    - :class:`TableColumn`
+    - :class:`TableRecord`
+    - :class:`Table`
+    """
     _records: set[TableRecord[T]] = field(default_factory=set)
+    """List of the table records."""
 
     async def length(self) -> int:
         return len(self._records)
@@ -760,11 +935,66 @@ class MemoryTable[T](Table[T]):
 
 @dataclass(slots=True)
 class SqlTable[T](Table[T], ABC):
+    """Abstract base class for SQL-based tables.
+
+    This class extends the functionality of the :class:`Table` class to work with SQL databases.
+    It provides methods for interacting with SQL tables and manages the connection
+    to the database.
+
+    Attributes
+    ----------
+    name : `str`
+        The name of the table.
+    _columns : `tuple` [:class:`TableColumn` [`T`], ...]
+        The columns of the table. This field is protected, use :obj:`Table.columns` instead.
+    _record_type : `type` [:class:`TableRecord` [`T`]]
+        The type used for records in this table.
+    _executor : :class:`sl3aio.executor.ConnectionManager`
+        A connection manager for executing SQL operations on the table.
+    _default_selector : `str`
+        The default WHERE clause for selecting records.
+
+    See Also
+    --------
+    - :class:`SolidTable`
+    - :class:`TableColumn`
+    - :class:`TableRecord`
+    - :class:`Table`
+    """
     _executor: ConnectionManager
     _default_selector: str = field(init=False)
 
+    def __post_init__(self) -> None:
+        super(SqlTable, self).__post_init__()
+        self._default_selector = 'WHERE ' + ' AND '.join(f'{k} = ?' for k in self._record_type.fields)
+
+    @property
+    def database(self) -> str:
+        """Get the name of the database this table belongs to.
+
+        Returns
+        -------
+        `str`
+            The name of the database.
+        """
+        return self._executor.database
+
     @classmethod
-    async def from_database(cls, name: str, executor: ConnectionManager) -> Self:        
+    async def from_database(cls, name: str, executor: ConnectionManager) -> 'SqlTable':        
+        """Create a SqlTable instance from an existing database table.
+
+        Parameters
+        ----------
+        name : `str`
+            The name of the existing table in the database.
+        executor : :class:`sl3aio.executor.ConnectionManager`
+            The connection manager for the database.
+
+        Returns
+        -------
+        :class:`SqlTable` [`T`]
+            A new SqlTable instance representing the existing database table.
+        """
         columns: list[TableColumn] = []
         table_sql = (await (await executor.execute(f'SELECT sql FROM sqlite_master WHERE type = "table" AND name = "{name}"')).fetchone())[0]
         columns_data = await executor.execute(f'SELECT type, dflt_value FROM pragma_table_info("{name}")')
@@ -779,15 +1009,23 @@ class SqlTable[T](Table[T], ABC):
             columns.append(TableColumn.from_sql(column_sql, default))
         return cls(name, tuple(columns), executor)
 
-    def __post_init__(self) -> None:
-        super(SqlTable, self).__post_init__()
-        self._default_selector = 'WHERE ' + ' AND '.join(f'{k} = ?' for k in self._record_type.fields)
-
-    @property
-    def database(self) -> str:
-        return self._executor.database
-
     async def _execute_where(self, query: str, record: TableRecord[T], parameters: Parameters = ()) -> CursorManager:
+        """Execute a SQL query with a WHERE clause based on the given record.
+
+        Parameters
+        ----------
+        query : `str`
+            The SQL query to execute.
+        record : :class:`TableRecord` [`T`]
+            The record to use for the WHERE clause.
+        parameters : :obj:`sl3aio.executor.Parameters`, optional
+            Additional parameters for the query.
+
+        Returns
+        -------
+        :class:`CursorManager`
+            A cursor manager for the executed query.
+        """
         if self._record_type.nonrepeating:
             key = record.nonrepeating[0]
             return await self._executor.execute(f'{query} WHERE {key} = ?', (*parameters, getattr(record, key)))
@@ -800,14 +1038,49 @@ class SqlTable[T](Table[T], ABC):
         return await self._executor.execute(f'{query} {self._default_selector}', (*parameters, *record))
     
     @abstractmethod
-    async def create(self) -> None: ...
+    async def create(self) -> None:
+        """Create the SQL table in the database.
+
+        This method should be implemented by subclasses to create the table
+        structure in the database.
+        """
 
     @abstractmethod
-    async def drop(self) -> None: ...
+    async def drop(self) -> None:
+        """Drop the SQL table from the database.
+
+        This method should be implemented by subclasses to remove the table
+        from the database.
+        """
 
 
 @dataclass(slots=True)
 class SolidTable[T](SqlTable[T]):
+    """A concrete implementation of :class:`SqlTable` for interacting with SQLite databases.
+
+    This class provides methods for performing CRUD (Create, Read, Update, Delete) operations
+    on SQLite tables. It implements the abstract methods defined in SqlTable and Table classes.
+
+    Attributes
+    ----------
+    name : `str`
+        The name of the table.
+    _columns : `tuple` [:class:`TableColumn` [`T`], ...]
+        The columns of the table. This field is protected, use :obj:`Table.columns` instead.
+    _record_type : `type` [:class:`TableRecord` [`T`]]
+        The type used for records in this table.
+    _executor : :sl3aio.executor.ConnectionManager`
+        A connection manager for executing SQL operations on the table.
+    _default_selector : `str`
+        The default WHERE clause for selecting records.
+
+    See Also
+    --------
+    - :class:`TableColumn`
+    - :class:`TableRecord`
+    - :class:`SqlTable`
+    - :class:`Table`
+    """
     async def length(self) -> int:
         return await (await self._executor.execute(f'SELECT MAX(rowid) FROM "{self.name}"')).fetchone()[0]
 
@@ -853,8 +1126,17 @@ class SolidTable[T](SqlTable[T]):
                     yield record
 
     async def create(self) -> None:
+        """Create the SQL table in the database.
+
+        This method drops the existing table (if any) and creates a new one
+        based on the defined columns.
+        """
         await self.drop()
         await self._executor.execute(f'CREATE TABLE "{self.name}" ({", ".join(column.to_sql() for column in self.columns)})')
     
     async def drop(self) -> None:
+        """Drop the SQL table from the database.
+
+        This method removes the table from the database if it exists.
+        """
         await self._executor.execute(f'DROP TABLE IF EXISTS "{self.name}"')

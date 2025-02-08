@@ -2,18 +2,22 @@
 sl3aio.easytable
 ================
 
-This module provides a high-level, user-friendly interface for working with database tables in the sl3aio library. 
-It offers simplified abstractions for common database operations, making it easier to define, query, and manipulate 
-database tables.
-
-Key Components
---------------
-1. EasySelector: A powerful class for building complex database queries and selections.
-2. EasyColumn: A simplified way to define table columns with various attributes.
-3. EasyTable: A high-level representation of database tables with easy-to-use methods for common operations.
+This module provides a high-level, user-friendly interface for working with database tables in the sl3aio
+library.  It offers simplified abstractions for common database operations, making it easier to define, query,
+and manipulate database tables.
 
 The module aims to provide a more intuitive and Pythonic way of interacting with database tables, reducing 
 the complexity often associated with SQL operations.
+
+Key Components
+--------------
+- :class:`EasySelector`: A powerful class for building complex database queries and selections.
+- :class:`EasyColumn`: A simplified way to define table columns with various attributes.
+- :class:`EasyTable`: A high-level representation of database tables with easy-to-use methods for common operations.
+
+Other Components
+----------------
+- :func:`default_selector`: A default selection function used by EasySelector.
 
 Features
 --------
@@ -48,8 +52,6 @@ Examples
     # 2. Then, when needed, selector will iterate over the table and apply itself
     # on each record of the table, filtering and getting specific information
     # from them.
-
-    # Here is a guide.
 
     # Selecting an attribute and getting item from current value:
     selector.<attr_name>
@@ -191,7 +193,7 @@ Examples
 
 See Also
 --------
-- :mod:`sl3aio.table`
+- :mod:`sl3aio.table`: Native module for working with tables.
 """
 import operator
 from math import trunc, floor, ceil
@@ -207,7 +209,7 @@ __all__ = ['default_selector', 'EasySelector', 'EasyColumn', 'EasyTable']
 
 def default_selector(previous, _: TableRecord) -> tuple[True, Any]:
     """The default selector function for :class:`EasySelector` that always returns True and
-    the provided value. You can slightly understand EasySelector's mechanism using this function.
+    the provided value.
     
     Parameters
     ----------
@@ -250,7 +252,7 @@ class EasySelector[T]:
     selector: Callable[[Any, TableRecord[T]], tuple[bool, Any]] = default_selector
     """The selector function. Optional, defaults to :func:`default_selector`
     
-    .. attention::
+    .. Attention::
         Change this field only if you know what you are doing.
     """
 
@@ -293,7 +295,8 @@ class EasySelector[T]:
         Returns
         -------
         `tuple` [`bool`, `Any`]
-            A tuple containing a boolean indicating if the selector matched, and the result of the selector application.
+            A tuple containing a boolean indicating if the selector matched,
+            and the result of the selector application.
         """
         return self.selector(record, record)
 
@@ -478,7 +481,13 @@ class EasySelector[T]:
             return selector(ok, obj, record)
         return replace(self, selector=__selector)
 
-    def pass_into[**P](self, func: Callable[Concatenate[Any, P], Any], *args: P.args, key_or_pos: str | int = 0, **kwargs: P.kwargs) -> Self:
+    def pass_into[**P](
+        self, 
+        func: Callable[Concatenate[Any, P], Any],
+        *args: P.args,
+        key_or_pos: str | int = 0,
+        **kwargs: P.kwargs
+    ) -> Self:
         r"""Passes the result of the current selector into a function.
 
         Parameters
@@ -909,7 +918,7 @@ class EasyColumn[T]:
         :class:`sl3aio.table.TableColumn` [`T`]
             A TableColumn instance representing the column in the database.
 
-        .. note::
+        .. Note::
             If a Parser wasn't found for the given type, ``'TEXT'`` is used as the default type.
         """
         return TableColumn(

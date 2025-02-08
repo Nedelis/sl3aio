@@ -9,10 +9,13 @@ process for database operations.
 
 Key Components
 --------------
-1. :class:`DefaultDataType`: Type alias for basic types natively supported by SQLite.
-2. :class:`Parsable`: Abstract base class for creating custom parsable objects.
-3. :class:`Parser`: Class for creating and managing custom data parsers.
-4. :class:`BuiltinParsers`: Container for default and additional pre-defined parsers.
+- :class:`Parser`: Class for creating and managing custom data parsers.
+- :class:`Parsable`: Abstract base class for creating custom parsable objects.
+- :class:`BuiltinParsers`: Container for default and additional pre-defined parsers.
+
+Other Components
+----------------
+- :obj:`DefaultDataType`: Type alias for basic types natively supported by SQLite.
 
 Features
 --------
@@ -28,7 +31,7 @@ This module is designed to be used in conjunction with the sl3aio library for SQ
 database operations. It provides the necessary tools to seamlessly convert between 
 Python objects and their SQLite representations.
 
-.. important::
+.. Important::
     If you create custom parsers, you should always set the connection's parameter
     ``detect_types`` to ``sqlite3.PARSE_DECLTYPES``.
 
@@ -126,7 +129,7 @@ def allowed_typenames() -> set[str]:
     `set` [`str`]
         Set of allowed columns types.
 
-    .. note::
+    .. Note::
         For default data types, this list includes only their affinities. So there are no
         such typenames as ``DOUBLE``, ``TINYINT``, ``VARCHAR(...)`` and etc. in the result set.
     """
@@ -174,7 +177,7 @@ class Parser[T]:
     Automates the registration of converters and adapters in sqlite3. Provides
     convinient access to the already registered parsers.
 
-    .. attention::
+    .. Attention::
         Every single parser must have at least one supported type and at least one
         supported typename.
         
@@ -193,6 +196,12 @@ class Parser[T]:
     """Method to parse a data from bytes."""
     dumps: Callable[[T], Parsable | DefaultDataType] = field(repr=False)
     """Method to convert an object to the object of the allowed type, listed in :func:`allowed_types()`."""
+
+    def __post_init__(self) -> None:
+        assert self.types, 'Parser must have at least one type corresponding to it!'
+        assert self._typenames, 'Parser must have at least one typename corresponding to it!'
+        self._typenames = set(map(str.upper, self._typenames))
+        self.instances.add(self)
 
     @property
     def typenames(self) -> set[str]:
@@ -259,12 +268,6 @@ class Parser[T]:
         _typename = _typename.upper()
         return next((parser for parser in cls.instances if _typename in parser.typenames), None)
 
-    def __post_init__(self) -> None:
-        assert self.types, 'Parser must have at least one type corresponding to it!'
-        assert self._typenames, 'Parser must have at least one typename corresponding to it!'
-        self._typenames = set(map(str.upper, self._typenames))
-        self.instances.add(self)
-
     def register(self) -> Self:
         """Register converters and adapters in sqlite3.
         
@@ -301,11 +304,11 @@ class Parser[T]:
 class BuiltinParsers:
     """Container for default and some extra parsers.
 
-    .. attention::
+    .. Attention::
         Do not registrate ``BLOB``, ``INT``, ``REAL`` and ``TEXT`` parsers using
         their's ``register()`` method.
 
-    .. attention::
+    .. Attention::
         Before using ``BOOL``, ``SET``, ``LIST``, ``TUPLE``, ``DICT``, ``JSON``, ``TIME``,
         ``DATE`` and ``DATETIME`` parsers, you must call :meth:`BuiltinParsers.init()` method.
     
