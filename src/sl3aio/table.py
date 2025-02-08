@@ -26,6 +26,26 @@ Other Components
 - :class:`Table`: Abstract base class for all table types.
 - :class:`SqlTable`: Abstract base class for SQL-based tables.
 
+.. Warning::
+    Never create table instances outside of an asynchronous context (except when
+    you've re-implemented their logic). This is because when creating a table, it
+    needs an active event loop. Instead of creating instances, you can use
+    lazy initialization:
+
+    .. code-block:: python
+
+        from sl3aio.table import MemoryTable
+
+        class Database:
+            my_table: MemoryTable
+
+            @classmethod
+            def setup(cls) -> None:
+                cls.my_table = MemoryTable("my_table", ...)
+
+        async def main() -> None:
+            Database.setup()
+
 Usage Examples
 --------------
 - Creating and using a :class:`MemoryTable`:

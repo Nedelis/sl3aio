@@ -15,10 +15,74 @@ type Parameters = Sequence[DefaultDataType] | Mapping[str, DefaultDataType]
 
 @dataclass(slots=True)
 class Executor:
+    r"""A class that provides asynchronous execution capabilities for synchronous functions.
+
+    This class uses a ThreadPoolExecutor to run synchronous functions in a separate thread,
+    allowing them to be executed asynchronously without blocking the main event loop.
+
+    Methods
+    -------
+    __call__[\*\*P, R](self, func: Callable[P, R], \*args: P.args, \*\*kwargs: P.kwargs) -> Future[R]
+        Executes the given function asynchronously in a separate thread.
+
+    Examples
+    --------
+
+    .. code-block:: python
+    
+        import time
+        from asyncio import run
+        
+        executor = Executor()
+        
+        def slow_function(duration):
+            time.sleep(duration)
+            return f"Slept for {duration} seconds"
+        
+        async def main():
+            result = await executor(slow_function, 2)
+            print(result)
+        
+        run(main())  # >>> Slept for 2 seconds
+
+    Notes
+    -----
+    - The Executor class is designed to work with Python's asyncio framework.
+    - It automatically uses the running event loop and creates a new ThreadPoolExecutor.
+    - This class is useful for running CPU-bound or blocking I/O operations without 
+      blocking the main event loop.
+    """
     _loop: AbstractEventLoop = field(init=False, default_factory=get_running_loop)
+    """The event loop used for scheduling coroutines and callbacks."""
     _executor: ThreadPoolExecutor = field(init=False, default_factory=ThreadPoolExecutor)
+    """The thread pool used for executing synchronous functions."""
 
     def __call__[**P, R](self, func: Callable[P, R], *args: P.args, **kwargs: P.kwargs) -> Future[R]:
+        r"""Execute the given function asynchronously in a separate thread.
+
+        This method allows you to run any synchronous function asynchronously,
+        which is particularly useful for CPU-bound tasks or operations that would
+        otherwise block the event loop.
+
+        Parameters
+        ----------
+        func : `Callable` [`P`, `R`]
+            The function to be executed asynchronously.
+        \*args : `P.args`
+            Positional arguments to be passed to the function.
+        \*\*kwargs : `P.kwargs`
+            Keyword arguments to be passed to the function.
+
+        Returns
+        -------
+        `Future` [`R`]
+            A Future object representing the eventual result of the function call.
+
+        Notes
+        -----
+        - The function is executed in a separate thread from the thread pool.
+        - The result can be awaited in an asynchronous context.
+        """
         return self._loop.run_in_executor(self._executor, partial(func, *args, **kwargs))
 
 
