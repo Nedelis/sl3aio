@@ -196,8 +196,8 @@ class TableRecord[T](tuple[T, ...]):
     executor: ClassVar[Executor]
     """An executor for running operations on the record."""
 
-    def __new__(cls, *args: T, **kwargs: T) -> Self:
-        """Create a new instance of the record. Same as :meth:`TableRecord.make` but sync."""
+    def __new__[T](cls, *args: T, **kwargs: T) -> 'TableRecord[T]':
+        """Create a new instance of the record. Same as :meth:`TableRecord.make` but synchronous."""
         params = dict(zip(cls.fields, args)) | kwargs
         return super().__new__(
             cls,
@@ -233,7 +233,7 @@ class TableRecord[T](tuple[T, ...]):
         })
     
     @classmethod
-    async def make(cls, *args: T, **kwargs: T) -> Self:
+    async def make[T](cls, *args: T, **kwargs: T) -> 'TableRecord[T]':
         r"""Asynchronously create a new instance of the record.
 
         The positional arguments must be in the order of the columns in the table.
@@ -289,7 +289,7 @@ class TableRecord[T](tuple[T, ...]):
 
         Returns
         -------
-        :class:`TableRecord` [`T`]
+        `Self`
             A new record with the specified values replaced.
         """
         return await self.make(**(self.asdict() | to_replace))
@@ -397,7 +397,7 @@ class TableColumnValueGenerator[T]:
         return decorator
 
     @classmethod
-    def get_by_name(cls, name: str) -> Self | None:
+    def get_by_name(cls, name: str) -> 'TableColumnValueGenerator | None':
         """Retrieve a registered generator by name.
 
         Parameters
@@ -417,7 +417,7 @@ class TableColumnValueGenerator[T]:
 
         Returns
         -------
-        :class:`TableColumnValueGenerator` [`T`]
+        `Self`
             A new instance of the generator with the same attributes.
         """
         return type(self)(name=self.name, generator=self.generator)
@@ -427,7 +427,7 @@ class TableColumnValueGenerator[T]:
 
         Returns
         -------
-        :class:`TableColumnValueGenerator` [`T`]
+        `Self`
             Self for chaining.
         """
         self._instances[self.name] = self.copy()
@@ -438,7 +438,7 @@ class TableColumnValueGenerator[T]:
 
         Returns
         -------
-        :class:`TableColumnValueGenerator` [`T`]
+        `Self`
             Self for chaining.
         """
         self._instances.pop(self.name, None)
@@ -999,7 +999,7 @@ class SqlTable[T](Table[T], ABC):
         return self._executor.database
 
     @classmethod
-    async def from_database(cls, name: str, executor: ConnectionManager) -> 'SqlTable':        
+    async def from_database[T](cls, name: str, executor: ConnectionManager) -> 'SqlTable[T]':        
         """Create a SqlTable instance from an existing database table.
 
         Parameters
@@ -1013,9 +1013,16 @@ class SqlTable[T](Table[T], ABC):
         -------
         :class:`SqlTable` [`T`]
             A new SqlTable instance representing the existing database table.
+
+        Raises
+        ------
+        `AssertionError`
+            If the table does not exist in the specified database.
         """
+        table_sql = await (await executor.execute(f'SELECT sql FROM sqlite_master WHERE type="table" AND name="{name}"')).fetchone()
+        assert table_sql is not None, f'Table "{name}" is not present in the "{executor.database}" database.'
         columns: list[TableColumn] = []
-        table_sql = (await (await executor.execute(f'SELECT sql FROM sqlite_master WHERE type = "table" AND name = "{name}"')).fetchone())[0]
+        table_sql: str = table_sql[0]
         columns_data = await executor.execute(f'SELECT type, dflt_value FROM pragma_table_info("{name}")')
         for column_sql in re_match(_ColumnsSqlFromTable, table_sql).group(1).split(', '):
             typename, default = await anext(columns_data)
@@ -1055,21 +1062,37 @@ class SqlTable[T](Table[T], ABC):
                 (*parameters, *values.values())
             )
         return await self._executor.execute(f'{query} {self._default_selector}', (*parameters, *record))
-    
+
     @abstractmethod
-    async def create(self) -> None:
+    async def exists(self) -> bool:
+        """Check if the table exists in the database.
+
+        Returns
+        -------
+        `bool`
+            `True` if the table is present in the database, otherwise `False`.
+        """
+
+    @abstractmethod
+    async def create(self, if_not_exists: bool = True) -> None:
         """Create the SQL table in the database.
 
-        This method should be implemented by subclasses to create the table
-        structure in the database.
+        Parameters
+        ----------
+        if_not_exists : `bool`, optional
+            If `True`, the table will be created if it does not already exist without throwing an
+            exception. Defaults to `True`.
         """
 
     @abstractmethod
     async def drop(self) -> None:
         """Drop the SQL table from the database.
 
-        This method should be implemented by subclasses to remove the table
-        from the database.
+        Parameters
+        ----------
+        if_exists : `bool`, optional
+            If `True`, the table will be dropped only if it already exists without throwing an
+            exception. Defaults to `True`.
         """
 
 
@@ -1144,18 +1167,21 @@ class SolidTable[T](SqlTable[T]):
                     await self._execute_where(sql, record, to_update.values())
                     yield record
 
-    async def create(self) -> None:
-        """Create the SQL table in the database.
+    async def exists(self) -> bool:
+        return await bool((await self._executor.execute(
+            f'SELECT COUNT(name) FROM sqlite_master WHERE type="table" AND name="{self.name}"'
+        )).fetchone()[0])
 
-        This method drops the existing table (if any) and creates a new one
-        based on the defined columns.
-        """
-        await self.drop()
-        await self._executor.execute(f'CREATE TABLE "{self.name}" ({", ".join(column.to_sql() for column in self.columns)})')
+    async def create(self, if_not_exists: bool = True) -> None:
+        await self._executor.execute(
+            'CREATE TABLE ' +
+            ('IF NOT EXISTS ' if if_not_exists else '') +
+            f'"{self.name}" ({", ".join(column.to_sql() for column in self.columns)})'
+        )
     
-    async def drop(self) -> None:
-        """Drop the SQL table from the database.
-
-        This method removes the table from the database if it exists.
-        """
-        await self._executor.execute(f'DROP TABLE IF EXISTS "{self.name}"')
+    async def drop(self, if_exists: bool = True) -> None:
+        await self._executor.execute(
+            'DROP TABLE ' +
+            ('IF EXISTS ' if if_exists else '') +
+            f'"{self.name}"'
+        )

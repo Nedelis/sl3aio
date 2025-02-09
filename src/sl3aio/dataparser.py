@@ -145,7 +145,7 @@ class Parsable(ABC):
     """
     @classmethod
     @abstractmethod
-    def from_data(cls, data: bytes) -> Self:
+    def from_data(cls, data: bytes) -> 'Parsable':
         """Create an instance from a binary data.
         
         Parameters
@@ -179,7 +179,7 @@ class Parser[T]:
 
     .. Attention::
         Every single parser must have at least one supported type and at least one
-        supported typename.
+        supported typename, otherwise instantiation will raise the `AssertionError`.
         
     See Also
     --------
@@ -212,7 +212,7 @@ class Parser[T]:
         self._typenames = set(map(str.upper, typenames))
 
     @classmethod
-    def from_parsable(cls, parsable: type[Parsable], typenames: Iterable[str] = ()) -> Self:
+    def from_parsable[T: Parsable](cls, parsable: type[T], typenames: Iterable[str] = ()) -> 'Parser[T]':
         """Construct a new instance from a parsable object and optional typenames.
         
         Parameters
@@ -225,7 +225,7 @@ class Parser[T]:
 
         Returns
         -------
-        :class:`Parser`
+        `Self`
             New instance of the parser.
         """
         return cls(
@@ -236,7 +236,7 @@ class Parser[T]:
         )
 
     @classmethod
-    def get_by_type(cls, _type: T) -> Self | None:
+    def get_by_type[T](cls, _type: T) -> 'Parser[T] | None':
         """Get an instance of a parser from its registry by the type it supports.
         
         Parameters
@@ -246,13 +246,13 @@ class Parser[T]:
 
         Returns
         -------
-        :class:`Parser` | `None`
+        :class:`Parser` [`T`] | `None`
             Instance of the parser or None if no parser corresponding to the given type was found.
         """
         return next((parser for parser in cls.instances if _type in parser.types), None)
     
     @classmethod
-    def get_by_typename(cls, _typename: str) -> Self | None:
+    def get_by_typename[T](cls, _typename: str) -> 'Parser[T] | None':
         """Get an instance of a parser from its registry by the typename of type which it supports.
         
         Parameters
@@ -262,7 +262,7 @@ class Parser[T]:
         
         Returns
         -------
-        :class:`Parser` | `None`
+        :class:`Parser` [`T`] | `None`
             Instance of the parser or None if no parser corresponding to the given typename was found.
         """
         _typename = _typename.upper()
@@ -273,7 +273,7 @@ class Parser[T]:
         
         Returns
         -------
-        :class:`Parser`
+        'Self'
             Self for chaining.
         """
         for __typename in self.typenames:
@@ -287,7 +287,7 @@ class Parser[T]:
         
         Returns
         -------
-        :class:`Parser`
+        `Self`
             Self for chaining.
         """
         for __typename in self.typenames:
