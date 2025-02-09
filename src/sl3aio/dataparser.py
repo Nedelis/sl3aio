@@ -1,6 +1,6 @@
 """
-sl3aio.dataparser
-=================
+Description
+===========
 
 This module provides a flexible and extensible system for parsing and converting data 
 between Python objects and SQLite database representations. It offers tools for 
@@ -141,7 +141,7 @@ class Parsable(ABC):
     
     See Also
     --------
-    - :class:`Parser`
+    :class:`Parser`
     """
     @classmethod
     @abstractmethod
@@ -183,8 +183,8 @@ class Parser[T]:
         
     See Also
     --------
-    - :class:`Parsable`  
-    - :class:`BuiltinParsers`
+    :class:`Parsable`  
+    :class:`BuiltinParsers`
     """
     instances: ClassVar[set[Self]] = set()
     """Container for all of the parsers that were created."""
@@ -314,8 +314,8 @@ class BuiltinParsers:
     
     See Also
     --------
-    - :class:`Parser`
-    - :class:`Parsable`
+    :class:`Parser`
+    :class:`Parsable`
     """
     BLOB: ClassVar[Parser[bytes]] = Parser({bytes}, {'BLOB', 'BYTES'}, bytes, bytes)
     """Parser for binary data."""

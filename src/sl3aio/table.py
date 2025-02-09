@@ -1,6 +1,6 @@
 """
-sl3aio.table
-============
+Description
+===========
 
 This module provides a set of classes for working with database tables in an object-oriented manner.
 
@@ -158,8 +158,8 @@ inserting, selecting, updating, and deleting records, as well as using custom ge
 
 See Also
 --------
-- :mod:`sl3aio.easytable`: Convinient and easy interface to work with tables.
-- :mod:`sl3aio.executor`: Core module of this library.
+:mod:`sl3aio.easytable`: Convinient and easy interface to work with tables.
+:mod:`sl3aio.executor`: Core module of this library.
 """
 from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass, field
@@ -206,13 +206,13 @@ class TableRecord[T](tuple[T, ...]):
 
     @classmethod
     def make_subclass[T](cls, table: 'Table[T]', *columns: 'TableColumn[T]') -> type['TableRecord[T]']:
-        r"""Create a new subclass of TableRecord for a specific table.
+        """Create a new subclass of TableRecord for a specific table.
 
         Parameters
         ----------
         table : :class:`Table` [`T`]
             The table for which to create the subclass.
-        \*columns : :class:`TableColumn` [`T`]
+        *columns : :class:`TableColumn` [`T`]
             The columns of the table.
 
         Returns
@@ -234,7 +234,7 @@ class TableRecord[T](tuple[T, ...]):
     
     @classmethod
     async def make[T](cls, *args: T, **kwargs: T) -> 'TableRecord[T]':
-        r"""Asynchronously create a new instance of the record.
+        """Asynchronously create a new instance of the record.
 
         The positional arguments must be in the order of the columns in the table.
         The names of the keyword arguments must match the names of the columns in the table.
@@ -243,9 +243,9 @@ class TableRecord[T](tuple[T, ...]):
 
         Parameters
         ----------
-        \*args : `T`
+        *args : `T`
             Positional arguments for the record values.
-        \*\*kwargs : `T`
+        **kwargs : `T`
             Keyword arguments for the record values.
 
         Returns
@@ -280,11 +280,11 @@ class TableRecord[T](tuple[T, ...]):
         return tuple(self)
 
     async def replace(self, **to_replace: T) -> Self:
-        r"""Create a new record with some values replaced.
+        """Create a new record with some values replaced.
 
         Parameters
         ----------
-        \*\*to_replace : `T`
+        **to_replace : `T`
             The values to replace in the new record.
 
         Returns
@@ -338,9 +338,10 @@ class TableColumnValueGenerator[T]:
     
     See Also
     --------
-    - :class:`TableColumn`
+    :class:`TableColumn`
     """
     _instances: ClassVar[dict[str, Self]] = {}
+    """Container for all of the generators that were created."""
     name: str
     """The name of the generator."""
     generator: Callable[[], T | Awaitable[T]]
@@ -445,6 +446,13 @@ class TableColumnValueGenerator[T]:
         return self
     
     def __next__(self) -> T:
+        """Retrieve a next value for the column.
+        
+        Returns
+        -------
+        `T`
+            Generated value.
+        """
         if isawaitable(result := self.generator()):
             return get_event_loop().run_until_complete(result)
         return result
@@ -463,8 +471,8 @@ class TableColumn[T]:
 
     See Also
     --------
-    - :class:`TableColumnValueGenerator`
-    - :class:`Table`
+    :class:`TableColumnValueGenerator`
+    :class:`Table`
     """
     name: str
     """The name of the column."""
@@ -564,15 +572,15 @@ class Table[T](ABC):
 
     See Also
     --------
-    - :class:`TableColumn`
-    - :class:`TableRecord`
-    - :class:`MemoryTable`
-    - :class:`SolidTable`
+    :class:`TableColumn`
+    :class:`TableRecord`
+    :class:`MemoryTable`
+    :class:`SolidTable`
     """
     name: str
     """The name of the table."""
     _columns: tuple[TableColumn[T], ...]
-    """The column of the table. This field is protected, use :obj:`Table.columns` instead."""
+    """The columns of the table. This field is protected, use :obj:`Table.columns` instead."""
     _record_type: type[TableRecord[T]] = field(init=False)
     """The type used for records in this table."""
     _executor: ConsistentExecutor = field(init=False, default_factory=ConsistentExecutor)
@@ -588,15 +596,15 @@ class Table[T](ABC):
         return self._columns
 
     async def make_record(self, *args: T, **kwargs: T) -> TableRecord[T]:
-        r"""Create a new record for this table.
+        """Create a new record for this table.
         
         For more details, see :meth:`TableRecord.make`.
 
         Parameters
         ----------
-        \*args : `T`
+        *args : `T`
             Positional arguments for the record values.
-        \*\*kwargs : `T`
+        **kwargs : `T`
             Keyword arguments for the record values.
 
         Returns
@@ -641,13 +649,13 @@ class Table[T](ABC):
 
     @abstractmethod
     async def insert(self, ignore_existing: bool = False, **values: T) -> TableRecord[T]:
-        r"""Insert a new record into the table.
+        """Insert a new record into the table.
 
         Parameters
         ----------
         ignore_existing : `bool`, optional
             Whether to ignore existing records. Defaults to False.
-        \*\*values : `T`
+        **values : `T`
             The values for the new record.
 
         Returns
@@ -657,17 +665,17 @@ class Table[T](ABC):
 
         See Also
         --------
-        - :meth:`Table.insert_many`
+        :meth:`Table.insert_many`
         """
 
     async def insert_many(self, ignore_existing: bool = False, *values: dict[str, T]) -> AsyncIterator[TableRecord[T]]:
-        r"""Insert multiple records into the table.
+        """Insert multiple records into the table.
 
         Parameters
         ----------
         ignore_existing : `bool`, optional
             Whether to ignore existing records. Defaults to False.
-        \*values : `dict` [`str`, `T`]
+        *values : `dict` [`str`, `T`]
             Dictionaries containing the values for each record to insert.
 
         Yields
@@ -677,7 +685,7 @@ class Table[T](ABC):
 
         See Also
         --------
-        - :meth:`Table.insert`
+        :meth:`Table.insert`
         """
         for record_values in values:
             yield await self.insert(ignore_existing, **record_values)
@@ -701,7 +709,7 @@ class Table[T](ABC):
 
         See Also
         --------
-        - :meth:`Table.select_one`
+        :meth:`Table.select_one`
         """
 
     async def select_one(self, predicate: TableSelectionPredicate[T] | None = None) -> TableRecord[T] | None:
@@ -719,7 +727,7 @@ class Table[T](ABC):
 
         See Also
         --------
-        - :meth:`Table.select`
+        :meth:`Table.select`
         """
         return await anext(self.select(predicate), None)
     
@@ -742,8 +750,8 @@ class Table[T](ABC):
 
         See Also
         --------
-        - :meth:`Table.delete`
-        - :meth:`Table.delete_one`
+        :meth:`Table.delete`
+        :meth:`Table.delete_one`
         """
 
     async def delete(self, predicate: TableSelectionPredicate[T] | None = None) -> None:
@@ -759,8 +767,8 @@ class Table[T](ABC):
 
         See Also
         --------
-        - :meth:`Table.pop`
-        - :meth:`Table.delete_one`
+        :meth:`Table.pop`
+        :meth:`Table.delete_one`
         """
         async for _ in self.pop(predicate):
             pass
@@ -780,14 +788,14 @@ class Table[T](ABC):
 
         See Also
         --------
-        - :meth:`Table.delete`
-        - :meth:`Table.delete_one`
+        :meth:`Table.delete`
+        :meth:`Table.delete_one`
         """
         return await anext(self.pop(predicate), None)
     
     @abstractmethod
     def updated(self, predicate: TableSelectionPredicate[T] | None = None, **to_update: T) -> AsyncIterator[TableRecord[T]]:
-        r"""Update records in the table and yield the updated records.
+        """Update records in the table and yield the updated records.
         
         .. Note::
             If predicate isn't specified, updates and yields every record.
@@ -796,7 +804,7 @@ class Table[T](ABC):
         ----------
         predicate : :class:`TableSelectionPredicate` [`T`] | `None`, optional
             A predicate to filter the records to update. Defaults to None.
-        \*\*to_update : `T`
+        **to_update : `T`
             The values to update in the matching records.
 
         Yields
@@ -806,12 +814,12 @@ class Table[T](ABC):
 
         See Also
         --------
-        - :meth:`Table.update`
-        - :meth:`Table.update_one`
+        :meth:`Table.update`
+        :meth:`Table.update_one`
         """
 
     async def update(self, predicate: TableSelectionPredicate[T] | None = None, **to_update: T) -> None:
-        r"""Update records in the table without yielding the updated records.
+        """Update records in the table without yielding the updated records.
 
         .. Note::
             If predicate isn't specified, upadates every record.
@@ -820,25 +828,25 @@ class Table[T](ABC):
         ----------
         predicate : :class:`TableSelectionPredicate` [`T`] | `None`, optional
             A predicate to filter the records to update. Defaults to None.
-        \*\*to_update : `T`
+        **to_update : `T`
             The values to update in the matching records.
         
         See Also
         --------
-        - :meth:`Table.updated`
-        - :meth:`Table.update_one`
+        :meth:`Table.updated`
+        :meth:`Table.update_one`
         """
         async for _ in self.updated(predicate, **to_update):
             pass
 
     async def update_one(self, predicate: TableSelectionPredicate[T] | None = None, **to_update: T) -> TableRecord[T] | None:
-        r"""Update a single record in the table.
+        """Update a single record in the table.
 
         Parameters
         ----------
         predicate : :class:`TableSelectionPredicate` [`T`] | `None`, optional
             A predicate to filter the record to update. Defaults to None.
-        \*\*to_update : `T`
+        **to_update : `T`
             The values to update in the matching record.
 
         Returns
@@ -848,8 +856,8 @@ class Table[T](ABC):
 
         See Also
         --------
-        - :meth:`Table.updated`
-        - :meth:`Table.update`
+        :meth:`Table.updated`
+        :meth:`Table.update`
         """
         return await anext(self.updated(predicate, **to_update), None)
     
@@ -865,11 +873,11 @@ class Table[T](ABC):
         return self
     
     async def __aexit__(self, *args) -> None:
-        r"""Asynchronous context manager exit point.
+        """Asynchronous context manager exit point.
 
         Parameters
         ----------
-        \*args
+        *args
             Arguments passed to the exit method.
         """
         await self._executor.__aexit__(*args)
@@ -883,22 +891,11 @@ class MemoryTable[T](Table[T]):
     on 'memory tables' (actually, just a python sets). It implements the abstract methods
     defined in Table class.
 
-    Attributes
-    ----------
-    name : `str`
-        The name of the table.
-    _columns : `tuple` [:class:`TableColumn` [`T`], ...]
-        The columns of the table. This field is protected, use :obj:`Table.columns` instead.
-    _record_type : `type` [:class:`TableRecord` [`T`]]
-        The type used for records in this table.
-    _executor : :class:`sl3aio.executor.ConsistentExecutor`
-        A connection manager for executing SQL operations on the table.
-
     See Also
     --------
-    - :class:`TableColumn`
-    - :class:`TableRecord`
-    - :class:`Table`
+    :class:`TableColumn`
+    :class:`TableRecord`
+    :class:`Table`
     """
     _records: set[TableRecord[T]] = field(default_factory=set)
     """List of the table records."""
@@ -960,25 +957,12 @@ class SqlTable[T](Table[T], ABC):
     It provides methods for interacting with SQL tables and manages the connection
     to the database.
 
-    Attributes
-    ----------
-    name : `str`
-        The name of the table.
-    _columns : `tuple` [:class:`TableColumn` [`T`], ...]
-        The columns of the table. This field is protected, use :obj:`Table.columns` instead.
-    _record_type : `type` [:class:`TableRecord` [`T`]]
-        The type used for records in this table.
-    _executor : :class:`sl3aio.executor.ConnectionManager`
-        A connection manager for executing SQL operations on the table.
-    _default_selector : `str`
-        The default WHERE clause for selecting records.
-
     See Also
     --------
-    - :class:`SolidTable`
-    - :class:`TableColumn`
-    - :class:`TableRecord`
-    - :class:`Table`
+    :class:`SolidTable`
+    :class:`TableColumn`
+    :class:`TableRecord`
+    :class:`Table`
     """
     _executor: ConnectionManager
     _default_selector: str = field(init=False)
@@ -1103,25 +1087,12 @@ class SolidTable[T](SqlTable[T]):
     This class provides methods for performing CRUD (Create, Read, Update, Delete) operations
     on SQLite tables. It implements the abstract methods defined in SqlTable and Table classes.
 
-    Attributes
-    ----------
-    name : `str`
-        The name of the table.
-    _columns : `tuple` [:class:`TableColumn` [`T`], ...]
-        The columns of the table. This field is protected, use :obj:`Table.columns` instead.
-    _record_type : `type` [:class:`TableRecord` [`T`]]
-        The type used for records in this table.
-    _executor : :sl3aio.executor.ConnectionManager`
-        A connection manager for executing SQL operations on the table.
-    _default_selector : `str`
-        The default WHERE clause for selecting records.
-
     See Also
     --------
-    - :class:`TableColumn`
-    - :class:`TableRecord`
-    - :class:`SqlTable`
-    - :class:`Table`
+    :class:`TableColumn`
+    :class:`TableRecord`
+    :class:`SqlTable`
+    :class:`Table`
     """
     async def length(self) -> int:
         return await (await self._executor.execute(f'SELECT MAX(rowid) FROM "{self.name}"')).fetchone()[0]

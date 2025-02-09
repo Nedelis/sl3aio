@@ -16,15 +16,10 @@ Parameters: TypeAlias = Sequence[DefaultDataType] | Mapping[str, DefaultDataType
 
 @dataclass(slots=True)
 class Executor:
-    r"""A class that provides asynchronous execution capabilities for synchronous functions.
+    """A class that provides asynchronous execution capabilities for synchronous functions.
 
     This class uses a ThreadPoolExecutor to run synchronous functions in a separate thread,
     allowing them to be executed asynchronously without blocking the main event loop.
-
-    Methods
-    -------
-    __call__[\*\*P, R](self, func: Callable[P, R], \*args: P.args, \*\*kwargs: P.kwargs) -> Future[R]
-        Executes the given function asynchronously in a separate thread.
 
     Example
     -------
@@ -62,7 +57,7 @@ class Executor:
     """The thread pool used for executing synchronous functions."""
 
     def __call__[**P, R](self, func: Callable[P, R], *args: P.args, **kwargs: P.kwargs) -> Future[R]:
-        r"""Execute the given function asynchronously in a separate thread.
+        """Execute the given function asynchronously in a separate thread.
 
         This method allows you to run any synchronous function asynchronously,
         which is particularly useful for CPU-bound tasks or operations that would
@@ -72,42 +67,26 @@ class Executor:
         ----------
         func : `Callable` [`P`, `R`]
             The function to be executed asynchronously.
-        \*args : `P.args`
+        *args : `P.args`
             Positional arguments to be passed to the function.
-        \*\*kwargs : `P.kwargs`
+        **kwargs : `P.kwargs`
             Keyword arguments to be passed to the function.
 
         Returns
         -------
         `Future` [`R`]
             A Future object representing the eventual result of the function call.
-
-        Notes
-        -----
-        - The function is executed in a separate thread from the thread pool.
-        - The result can be awaited in an asynchronous context.
         """
         return self._loop.run_in_executor(self._executor, partial(func, *args, **kwargs))
 
 
 @dataclass(slots=True)
 class ConsistentExecutor(Executor):
-    r"""A class that provides consistent asynchronous execution capabilities for synchronous functions.
+    """A class that provides consistent asynchronous execution capabilities for synchronous functions.
 
     This class extends the Executor class and ensures that tasks are executed in a consistent order
     using a single-threaded executor and a queue system. It's particularly useful when you need to
     maintain the order of execution for a series of tasks.
-
-    Methods
-    -------
-    __call__[\*\*P, R](self, func: Callable[P, R], \*args: P.args, \*\*kwargs: P.kwargs) -> Future[R]
-        Queue a function for execution and return a Future.
-
-    __aenter__() -> Self:
-        Async context manager entry point.
-
-    __aexit__(\*args) -> None:
-        Async context manager exit point.
 
     Example
     -------
@@ -228,7 +207,7 @@ class ConsistentExecutor(Executor):
         return False
 
     def __call__[**P, R](self, func: Callable[P, R], *args: P.args, **kwargs: P.kwargs) -> Future[R]:
-        r"""Queue a function for execution and return a Future.
+        """Queue a function for execution and return a Future.
 
         This method wraps the given function and its arguments into a partial function,
         creates a new Future, and adds both to the queue for later execution.
@@ -237,9 +216,9 @@ class ConsistentExecutor(Executor):
         ----------
         func : `Callable` [`P`, `R`]
             The function to be executed.
-        \*args : `P.args`
+        *args : `P.args`
             Positional arguments for the function.
-        \*\*kwargs `P.kwargs`
+        **kwargs : `P.kwargs`
             Keyword arguments for the function.
 
         Returns
@@ -264,7 +243,7 @@ class ConsistentExecutor(Executor):
         return self
     
     async def __aexit__(self, *args) -> None:
-        r"""
+        """
         Async context manager exit point.
 
         This method is called when exiting an 'async with' block. It stops the worker task
@@ -272,7 +251,7 @@ class ConsistentExecutor(Executor):
 
         Parameters
         ----------
-        \*args : `Any`
+        *args : `Any`
             Exception details (type, value, traceback) if an exception occurred.
         """
         await self.stop()
@@ -287,11 +266,6 @@ class Connector:
     attribute of this class is similar to the original parameters.
 
     During initialization, it normalizes the database path and ensures that it exists.
-
-    Methods
-    -------
-    __call__(self) -> Connection
-        Returns a new connection to the database.
 
     Example
     -------
@@ -413,9 +387,9 @@ class ConnectionManager(ConsistentExecutor):
 
     See Also
     --------
-    - :class:`CursorManager`
-    - :class:`Connector`
-    - :class:`ConsistentExecutor`
+    :class:`CursorManager`
+    :class:`Connector`
+    :class:`ConsistentExecutor`
     """
     _instances: ClassVar[dict[str, Self]] = {}
     """A class-level dictionary to store singleton instances for each database."""
@@ -450,7 +424,6 @@ class ConnectionManager(ConsistentExecutor):
 
         This method is intentionally left empty as initialization is handled in __new__.
         """
-        pass
 
     @property
     def connector(self) -> Connector:
@@ -536,7 +509,7 @@ class ConnectionManager(ConsistentExecutor):
         
         See Also
         --------
-        - :meth:`ConsistentExecutor.start`
+        :meth:`ConsistentExecutor.start`
         """
         if await super(ConnectionManager, self).start():
             self._connection = self._connector()
@@ -546,7 +519,7 @@ class ConnectionManager(ConsistentExecutor):
         
         See Also
         --------
-        - :meth:`ConsistentExecutor.stop`
+        :meth:`ConsistentExecutor.stop`
         """
         if await super(ConnectionManager, self).stop():
             self._connection.commit()

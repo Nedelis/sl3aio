@@ -1,6 +1,6 @@
 """
-sl3aio.easytable
-================
+Description
+===========
 
 This module provides a high-level, user-friendly interface for working with database tables in the sl3aio
 library.  It offers simplified abstractions for common database operations, making it easier to define, query,
@@ -24,12 +24,6 @@ Features
 - Simplified table and column definitions
 - Fluent interface for building complex queries
 - Easy-to-use methods for common database operations (insert, select, update, delete)
-
-Usage
------
-This module is designed to be used in conjunction with other components of the sl3aio library. It's particularly 
-useful for developers who want a more abstract and Pythonic way of working with database tables, without dealing 
-directly with SQL or low-level database operations.
 
 .. _easytable-examples:
 
@@ -193,7 +187,7 @@ Examples
 
 See Also
 --------
-- :mod:`sl3aio.table`: Native module for working with tables.
+:mod:`sl3aio.table`: Native module for working with tables.
 """
 import operator
 from math import trunc, floor, ceil
@@ -235,17 +229,10 @@ class EasySelector[T]:
     database operations using this class does not require mannually closing/opening the
     connection. See the :ref:`examples <easytable-examples>` to understand how to use
     this class.
-
-    Attributes
-    ----------
-    table : :class:`sl3aio.table.Table` [`T`] | `None`, optional
-        
-    _selector : `Callable` [[`Any`, :class:`sl3aio.table.TableRecord` [`T`]], `tuple` [`bool`, `Any`]], optional
-        
     
     See Also
     --------
-    - :class:`sl3aio.table.TableSelectionPredicate`
+    :class:`sl3aio.table.TableSelectionPredicate`
     """
     table: Table[T] | None = None
     """The database table to operate on. Optional, defaults to `None`."""
@@ -315,7 +302,7 @@ class EasySelector[T]:
         
         See Also
         --------
-        - :meth:`EasySelector.select_one`
+        :meth:`EasySelector.select_one`
         """
         async with (table or self.table) as table:
             async for record in table.select(self.as_predicate()):
@@ -336,7 +323,7 @@ class EasySelector[T]:
         
         See Also
         --------
-        - :meth:`EasySelector.select`
+        :meth:`EasySelector.select`
         """
         return await anext(self.select(table), None)
     
@@ -355,8 +342,8 @@ class EasySelector[T]:
         
         See Also
         --------
-        - :meth:`EasySelector.delete`
-        - :meth:`EasySelector.delete_one`
+        :meth:`EasySelector.delete`
+        :meth:`EasySelector.delete_one`
         """
         async with (table or self.table) as table:    
             async for record in table.pop(self.as_predicate()):
@@ -372,8 +359,8 @@ class EasySelector[T]:
         
         See Also
         --------
-        - :meth:`EasySelector.pop`
-        - :meth:`EasySelector.delete_one`
+        :meth:`EasySelector.pop`
+        :meth:`EasySelector.delete_one`
         """
         async for _ in self.pop(table):
             pass
@@ -393,19 +380,19 @@ class EasySelector[T]:
         
         See Also
         --------
-        - :meth:`EasySelector.pop`
-        - :meth:`EasySelector.delete`
+        :meth:`EasySelector.pop`
+        :meth:`EasySelector.delete`
         """
         return await anext(self.pop(table), None)
     
     async def updated(self, table: Table[T], **to_update: T) -> AsyncIterator[TableRecord[T]]:
-        r"""Updates records in the table that match the current selector.
+        """Updates records in the table that match the current selector.
 
         Parameters
         ----------
         table : :class:`sl3aio.table.Table` [`T`]
             The table to update.
-        \*\*to_update : `T`
+        **to_update : `T`
             Keyword arguments specifying the fields to update and their new values.
 
         Returns
@@ -415,39 +402,39 @@ class EasySelector[T]:
         
         See Also
         --------
-        - :meth:`EasySelector.update`
-        - :meth:`EasySelector.update_one`
+        :meth:`EasySelector.update`
+        :meth:`EasySelector.update_one`
         """
         async with (table or self.table) as table:
             async for record in table.updated(self.as_predicate(), **to_update):
                 yield record
 
     async def update(self, table: Table[T], **to_update: T) -> None:
-        r"""Updates all records in the table that match the current selector.
+        """Updates all records in the table that match the current selector.
 
         Parameters
         ----------
         table : :class:`sl3aio.table.Table` [`T`]
             The table to update.
-        \*\*to_update : `T`
+        **to_update : `T`
             Keyword arguments specifying the fields to update and their new values.
         
         See Also
         --------
-        - :meth:`EasySelector.updated`
-        - :meth:`EasySelector.update_one`
+        :meth:`EasySelector.updated`
+        :meth:`EasySelector.update_one`
         """
         async for _ in self.updated(table, **to_update):
             pass
 
     async def update_one(self, table: Table[T], **to_update: T) -> TableRecord[T] | None:
-        r"""Updates a single record in the table that matches the current selector.
+        """Updates a single record in the table that matches the current selector.
 
         Parameters
         ----------
         table : :class:`sl3aio.table.Table` [`T`]
             The table to update.
-        \*\*to_update : `T`
+        **to_update : `T`
             Keyword arguments specifying the fields to update and their new values.
 
         Returns
@@ -457,8 +444,8 @@ class EasySelector[T]:
         
         See Also
         --------
-        - :meth:`EasySelector.updated`
-        - :meth:`EasySelector.update`
+        :meth:`EasySelector.updated`
+        :meth:`EasySelector.update`
         """
         return await anext(self.updated(table, **to_update), None)
 
@@ -488,7 +475,7 @@ class EasySelector[T]:
         key_or_pos: str | int = 0,
         **kwargs: P.kwargs
     ) -> Self:
-        r"""Passes the result of the current selector into a function.
+        """Passes the result of the current selector into a function.
 
         Parameters
         ----------
@@ -496,9 +483,9 @@ class EasySelector[T]:
             The function to pass the result into.
         key_or_pos : `int` | `str`, optional
             Argument name or position in the function's signature.  Defaults to 0.
-        \*args : `P.args`
+        *args : `P.args`
             Positional arguments to pass to the function.
-        \*\*kwargs : `P.kwargs`
+        **kwargs : `P.kwargs`
             Keyword arguments to pass to the function.
 
         Returns
@@ -676,13 +663,13 @@ class EasySelector[T]:
         return self._unary_operator(reversed)
     
     def __call__(self, *args, **kwargs) -> Self:
-        r"""Call the current selected value with the given arguments.
+        """Call the current selected value with the given arguments.
 
         Parameters
         ----------
-        \*args : `tuple`
+        *args : `tuple`
             Arguments to be passed to the call.
-        \*\*kwargs : `dict`
+        **kwargs : `dict`
             Keyword arguments to be passed to the call.
 
         Returns
@@ -885,8 +872,8 @@ class EasyColumn[T]:
 
     See Also
     --------
-    - :class:`sl3aio.table.TableColumnValueGenerator`
-    - :class:`sl3aio.table.TableColumn`
+    :class:`sl3aio.table.TableColumnValueGenerator`
+    :class:`sl3aio.table.TableColumn`
     """
     default: T | TableColumnValueGenerator[T] | None = None
     """
@@ -940,9 +927,9 @@ class EasyTable[T]:
     manually. See the :ref:`examples <easytable-examples>` for more details.
 
     See Also
-    - :class:`sl3aio.table.Table`
-    - :class:`sl3aio.table.TableRecord`
-    - :class:`sl3aio.table.TableSelectionPredicate`
+    :class:`sl3aio.table.Table`
+    :class:`sl3aio.table.TableRecord`
+    :class:`sl3aio.table.TableSelectionPredicate`
     """
     table: Table[T]
     """The underlying database table."""
@@ -997,13 +984,13 @@ class EasyTable[T]:
             return await self.table.contains(record)
         
     async def insert(self, ignore_existing: bool = False, **values: T) -> TableRecord[T]:
-        r"""Insert a new record into the table.
+        """Insert a new record into the table.
 
         Parameters
         ----------
         ignore_existing : `bool`, optional
             If True, ignore if the record already exists. Defaults to False.
-        \*\*values : `T`
+        **values : `T`
             The values to insert, specified as keyword arguments.
 
         Returns
@@ -1013,19 +1000,19 @@ class EasyTable[T]:
 
         See Also
         --------
-        - :meth:`EasyTable.insert_many`
+        :meth:`EasyTable.insert_many`
         """
         async with self.table:
             return await self.table.insert(ignore_existing, **values)
         
     async def insert_many(self, ignore_existing: bool = False, *values: dict[str, T]) -> AsyncIterator[TableRecord[T]]:
-        r"""Insert multiple records into the table.
+        """Insert multiple records into the table.
 
         Parameters
         ----------
         ignore_existing : `bool`, optinal
             If True, ignore if the records already exist. Defaults to False.
-        \*\*values : `dict` [`str`, `T`]
+        **values : `dict` [`str`, `T`]
             The values to insert, specified as dictionaries.
 
         Returns
@@ -1035,7 +1022,7 @@ class EasyTable[T]:
         
         See Also
         --------
-        - :meth:`EasyTable.insert`
+        :meth:`EasyTable.insert`
         """
         async with self.table:
             async for record in self.table.insert_many(ignore_existing, *values):
@@ -1056,7 +1043,7 @@ class EasyTable[T]:
         
         See Also
         --------
-        - :meth:`EasyTable.select_one`
+        :meth:`EasyTable.select_one`
         """
         async with self.table:
             async for record in self.table.select(predicate):
@@ -1077,7 +1064,7 @@ class EasyTable[T]:
         
         See Also
         --------
-        - :meth:`EasyTable.select`
+        :meth:`EasyTable.select`
         """
         return await anext(self.select(predicate), None)
     
@@ -1096,8 +1083,8 @@ class EasyTable[T]:
 
         See Also
         --------
-        - :meth:`EasyTable.delete`
-        - :meth:`EasyTable.delete_one`
+        :meth:`EasyTable.delete`
+        :meth:`EasyTable.delete_one`
         """
         async with self.table:
             async for record in self.table.pop(predicate):
@@ -1113,8 +1100,8 @@ class EasyTable[T]:
         
         See Also
         --------
-        - :meth:`EasyTable.pop`
-        - :meth:`EasyTable.delete_one`
+        :meth:`EasyTable.pop`
+        :meth:`EasyTable.delete_one`
         """
         async for _ in self.pop(predicate):
             pass
@@ -1134,19 +1121,19 @@ class EasyTable[T]:
         
         See Also
         --------
-        - :meth:`EasyTable.pop`
-        - :meth:`EasyTable.delete`
+        :meth:`EasyTable.pop`
+        :meth:`EasyTable.delete`
         """
         return await anext(self.pop(predicate), None)
     
     async def updated(self, predicate: TableSelectionPredicate[T] | None = None, **to_update: T) -> AsyncIterator[TableRecord[T]]:
-        r"""Update records in the table based on a predicate and return the updated records.
+        """Update records in the table based on a predicate and return the updated records.
 
         Parameters
         ----------
         predicate : :class:`sl3aio.table.TableSelectionPredicate` [`T`] | `None`, optional
             The selection predicate. Defaults to None.
-        \*\*to_update : `T`
+        **to_update : `T`
             The values to update, specified as keyword arguments.
 
         Returns
@@ -1156,39 +1143,39 @@ class EasyTable[T]:
         
         See Also
         --------
-        - :meth:`EasyTable.update`
-        - :meth:`EasyTable.update_one`
+        :meth:`EasyTable.update`
+        :meth:`EasyTable.update_one`
         """
         async with self.table:
             async for record in self.table.updated(predicate, **to_update):
                 yield record
 
     async def update(self, predicate: TableSelectionPredicate[T] | None = None, **to_update: T) -> None:
-        r"""Update records in the table based on a predicate.
+        """Update records in the table based on a predicate.
 
         Parameters
         ----------
         predicate : :class:`sl3aio.table.TableSelectionPredicate` [`T`] | `None`, optional
             The selection predicate. Defaults to None.
-        \*\*to_update : `T`
+        **to_update : `T`
             The values to update, specified as keyword arguments.
         
         See Also
         --------
-        - :meth:`EasyTable.updated`
-        - :meth:`EasyTable.update_one`
+        :meth:`EasyTable.updated`
+        :meth:`EasyTable.update_one`
         """
         async for _ in self.updated(predicate, **to_update):
             pass
 
     async def update_one(self, predicate: TableSelectionPredicate[T] | None = None, **to_update: T) -> TableRecord[T] | None:
-        r"""Update a single record in the table based on a predicate.
+        """Update a single record in the table based on a predicate.
 
         Parameters
         ----------
         predicate : :class:`sl3aio.table.TableSelectionPredicate` [`T`] | `None`, optional
             The selection predicate. Defaults to None.
-        \*\*to_update : `T`
+        **to_update : `T`
             The values to update, specified as keyword arguments.
 
         Returns
@@ -1198,8 +1185,8 @@ class EasyTable[T]:
         
         See Also
         --------
-        - :meth:`EasyTable.updated`
-        - :meth:`EasyTable.update`
+        :meth:`EasyTable.updated`
+        :meth:`EasyTable.update`
         """
         return await anext(self.updated(predicate, **to_update), None)
 
