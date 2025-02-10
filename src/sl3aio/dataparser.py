@@ -114,15 +114,15 @@ def allowed_types() -> set[type]:
 
 def allowed_typenames() -> set[str]:
     """List names that can be used as column type in database.
+
+    .. Note::
+        For default data types, this list includes only their affinities. So there are no
+        such typenames as ``DOUBLE``, ``TINYINT``, ``VARCHAR(...)`` and etc. in the result set.
     
     Returns
     -------
     `set` [`str`]
         Set of allowed columns types.
-
-    .. Note::
-        For default data types, this list includes only their affinities. So there are no
-        such typenames as ``DOUBLE``, ``TINYINT``, ``VARCHAR(...)`` and etc. in the result set.
     """
     return {'BLOB', 'TEXT', 'INTEGER', 'REAL', 'NUMERIC', *converters}
 
@@ -182,7 +182,7 @@ class Parser[T]:
     types: set[type[T]]
     """Set of types corresponding to the parser."""
     _typenames: set[str]
-    """Set of names corresponding to the parser."""
+    """Set of names corresponding to the parser. This field is protected, use :attr:`Parser.typenames` instead."""
     loads: Callable[[bytes], T] = field(repr=False)
     """Method to parse a data from bytes."""
     dumps: Callable[[T], Parsable | DefaultDataType] = field(repr=False)
@@ -196,6 +196,7 @@ class Parser[T]:
 
     @property
     def typenames(self) -> set[str]:
+        """Set of names, corresponding to the parser."""
         return self._typenames
     
     @typenames.setter
@@ -296,12 +297,10 @@ class BuiltinParsers:
     """Container for default and some extra parsers.
 
     .. Attention::
-        Do not registrate ``BLOB``, ``INT``, ``REAL`` and ``TEXT`` parsers using
-        their's ``register()`` method.
-
-    .. Attention::
-        Before using ``BOOL``, ``SET``, ``LIST``, ``TUPLE``, ``DICT``, ``JSON``, ``TIME``,
-        ``DATE`` and ``DATETIME`` parsers, you must call :meth:`BuiltinParsers.init()` method.
+        - Do not registrate ``BLOB``, ``INT``, ``REAL`` and ``TEXT`` parsers using
+          their's ``register()`` method.
+        - Before using ``BOOL``, ``SET``, ``LIST``, ``TUPLE``, ``DICT``, ``JSON``, ``TIME``,
+          ``DATE`` and ``DATETIME`` parsers, you must call :meth:`BuiltinParsers.init()` method.
     
     See Also
     --------

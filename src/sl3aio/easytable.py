@@ -883,30 +883,30 @@ class EasyColumn[T]:
     nullable: bool = True
     """Indicates if this column can contain NULL values. Defaults to `True`."""
 
-    def to_column(self, name: str, __type: type[T]) -> TableColumn[T]:
+    def to_column(self, name: str, _type: type[T]) -> TableColumn[T]:
         """Converts the EasyColumn instance to a TableColumn instance.
 
         This method creates a TableColumn object based on the EasyColumn's attributes
         and the provided name and type.
 
+        .. Note::
+            If a Parser wasn't found for the given type, ``'TEXT'`` is used as the default type.
+
         Parameters
         ----------
         name : `str`
             The name of the column.
-        __type : `type` [`T`]
+        _type : `type` [`T`]
             The Python type of the column's values.
 
         Returns
         -------
         :class:`sl3aio.table.TableColumn` [`T`]
             A TableColumn instance representing the column in the database.
-
-        .. Note::
-            If a Parser wasn't found for the given type, ``'TEXT'`` is used as the default type.
         """
         return TableColumn(
             name,
-            next(iter(parser.typenames)) if (parser := Parser.get_by_type(__type)) else 'TEXT',
+            next(iter(parser.typenames)) if (parser := Parser.get_by_type(_type)) else 'TEXT',
             *((None, self.default) if isinstance(self.default, TableColumnValueGenerator) else (self.default, None)),
             self.primary,
             self.unique,
@@ -923,6 +923,7 @@ class EasyTable[T]:
     manually. See the :ref:`examples <easytable-examples>` for more details.
 
     See Also
+    --------
     :class:`sl3aio.table.Table`
     :class:`sl3aio.table.TableRecord`
     :class:`sl3aio.table.TableSelectionPredicate`

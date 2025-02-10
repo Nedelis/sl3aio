@@ -262,13 +262,7 @@ class ConsistentExecutor(Executor):
 
     @property
     def running(self) -> bool:
-        """Check if the worker task is currently running.
-
-        Returns
-        -------
-        `bool`
-            `True` if the worker task is running, `False` otherwise.
-        """
+        """Check if the worker task is currently running."""
         return self._worker_task is not None
 
     async def _worker(self) -> None:
@@ -544,24 +538,12 @@ class ConnectionManager(ConsistentExecutor):
 
     @property
     def connector(self) -> Connector:
-        """Get a copy of the current Connector.
-
-        Returns
-        -------
-        :class:`Connector`
-            A copy of the current Connector object.
-        """
+        """Get a copy of the current Connector."""
         return replace(self._connector)
 
     @property
     def database(self) -> str:
-        """Get the path to the current database.
-
-        Returns
-        -------
-        `str`
-            The path to the current database.
-        """
+        """Get the path to the current database."""
         return self._connector.database
     
     async def execute(self, sql: str, parameters: Parameters = ()) -> 'CursorManager':
