@@ -1,11 +1,15 @@
 """
 Description
-===========
-
+-----------
 This module provides a flexible and extensible system for parsing and converting data 
 between Python objects and SQLite database representations. It offers tools for 
 creating custom parsers, handling various data types, and managing the conversion 
 process for database operations.
+
+.. Warning::
+    If you create custom parsers, you should always set the connection's parameter
+    ``detect_types`` to ``sqlite3.PARSE_DECLTYPES``.
+
 
 Key Components
 --------------
@@ -13,30 +17,17 @@ Key Components
 - :class:`Parsable`: Abstract base class for creating custom parsable objects.
 - :class:`BuiltinParsers`: Container for default and additional pre-defined parsers.
 
+
 Other Components
 ----------------
 - :obj:`DefaultDataType`: Type alias for basic types natively supported by SQLite.
+- :func:`allowed_types`: Function for querying types, supported by the database.
+- :func:`allowed_typenames`: Function for querying typenames (sqlite column types),
+  supported by the database.
 
-Features
---------
-- Support for native SQLite data types and custom Python objects
-- Extensible parser system for handling complex data types
-- Automatic registration and management of SQLite adapters and converters
-- Built-in parsers for common Python types (e.g., bool, set, list, dict, datetime)
-- Utility functions for querying allowed types and type names
 
-Usage
------
-This module is designed to be used in conjunction with the sl3aio library for SQLite 
-database operations. It provides the necessary tools to seamlessly convert between 
-Python objects and their SQLite representations.
-
-.. Important::
-    If you create custom parsers, you should always set the connection's parameter
-    ``detect_types`` to ``sqlite3.PARSE_DECLTYPES``.
-
-Examples
---------
+Usage Examples
+--------------
 - If you need to work with booleans, or date and time, or lists, tuples, sets and dicts,
   or json objects, you don't need to create custom parsers for them. Call
   :func:`BuiltinParsers.init()` method and you will be able to work with these types.

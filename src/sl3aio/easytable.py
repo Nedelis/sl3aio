@@ -1,7 +1,6 @@
 """
 Description
-===========
-
+-----------
 This module provides a high-level, user-friendly interface for working with database tables in the sl3aio
 library.  It offers simplified abstractions for common database operations, making it easier to define, query,
 and manipulate database tables.
@@ -9,26 +8,23 @@ and manipulate database tables.
 The module aims to provide a more intuitive and Pythonic way of interacting with database tables, reducing 
 the complexity often associated with SQL operations.
 
+
 Key Components
 --------------
 - :class:`EasySelector`: A powerful class for building complex database queries and selections.
 - :class:`EasyColumn`: A simplified way to define table columns with various attributes.
 - :class:`EasyTable`: A high-level representation of database tables with easy-to-use methods for common operations.
 
+
 Other Components
 ----------------
 - :func:`default_selector`: A default selection function used by EasySelector.
 
-Features
---------
-- Simplified table and column definitions
-- Fluent interface for building complex queries
-- Easy-to-use methods for common database operations (insert, select, update, delete)
 
 .. _easytable-examples:
 
-Examples
---------
+Usage Examples
+--------------
 - Theory of EasySelector:
 
 .. code-block:: python

@@ -1,7 +1,6 @@
 """
 Description
-===========
-
+-----------
 This module provides a set of classes for working with database tables in an object-oriented manner.
 
 The module includes classes for representing table records, columns, and different types of tables
@@ -11,20 +10,6 @@ interaction with different types of tables.
 
 This module is designed to work with asynchronous operations and provides a flexible and
 extensible framework for database operations.
-
-Key Components
---------------
-- :class:`TableColumn`: Represents a column in a table.
-- :class:`TableColumnValueGenerator`: Generates values for table columns.
-- :class:`SolidTable`: Concrete implementation of SqlTable for interacting with SQLite databases.
-- :class:`MemoryTable`: Implementation of an in-memory table.
-- :class:`TableRecord`: Represents a single record in a table.
-
-Other Components
-----------------
-- :class:`TableSelectionPredicate`: Protocol for defining predicates used in table selection operations.
-- :class:`Table`: Abstract base class for all table types.
-- :class:`SqlTable`: Abstract base class for SQL-based tables.
 
 .. Warning::
     Never create table instances outside of an asynchronous context (except when
@@ -44,6 +29,23 @@ Other Components
 
         async def main() -> None:
             Database.setup()
+
+
+Key Components
+--------------
+- :class:`TableColumn`: Represents a column in a table.
+- :class:`TableColumnValueGenerator`: Generates values for table columns.
+- :class:`SolidTable`: Concrete implementation of SqlTable for interacting with SQLite databases.
+- :class:`MemoryTable`: Implementation of an in-memory table.
+- :class:`TableRecord`: Represents a single record in a table.
+
+
+Other Components
+----------------
+- :class:`TableSelectionPredicate`: Protocol for defining predicates used in table selection operations.
+- :class:`Table`: Abstract base class for all table types.
+- :class:`SqlTable`: Abstract base class for SQL-based tables.
+
 
 Usage Examples
 --------------
@@ -153,8 +155,6 @@ Usage Examples
     async for record in person_table.select(age_range):
         print(record.name, record.age)
 
-These examples demonstrate the basic usage of the main classes in this module. They cover creating tables,
-inserting, selecting, updating, and deleting records, as well as using custom generators and predicates.
 
 See Also
 --------
@@ -313,6 +313,9 @@ class TableSelectionPredicate[T](Protocol):
     This protocol defines the interface for callable objects that can be used
     to filter records in table operations.
     """
+
+    def __init__(self) -> None:
+        pass
 
     async def __call__(self, record: TableRecord[T]) -> bool:
         """Evaluate the predicate for a given record.
@@ -615,7 +618,12 @@ class Table[T](ABC):
         return await self._record_type.make(*args, **kwargs)
     
     async def start_executor(self) -> None:
-        """Start the table's executor."""
+        """Start the table's executor.
+        
+        .. Warning::
+            You must call this method or use table's async context manager before acessing the table,
+            otherwise the program will await for the request to complete forever.
+        """
         await self._executor.start()
     
     async def stop_executor(self) -> None:
@@ -864,10 +872,16 @@ class Table[T](ABC):
     async def __aenter__(self) -> Self:
         """Asynchronous context manager entry point.
 
+        Entries the executor's context manager, allowing to interact with the table.
+
         Returns
         -------
         `Self`
             The Table instance.
+
+        See Also
+        --------
+        :meth:`sl3aio.executor.ConsistentExecutor.__aenter__`
         """
         await self._executor.__aenter__()
         return self
@@ -875,17 +889,23 @@ class Table[T](ABC):
     async def __aexit__(self, *args) -> None:
         """Asynchronous context manager exit point.
 
+        Exits the executor's context manager and disables the table.
+
         Parameters
         ----------
         *args
             Arguments passed to the exit method.
+
+        See Also
+        --------
+        :meth:`sl3aio.executor.ConsistentExecutor.__aexit__`
         """
         await self._executor.__aexit__(*args)
     
 
 @dataclass(slots=True)
 class MemoryTable[T](Table[T]):
-    """A concrete implementation of :class:`Table` for interacting with in-memory databases.
+    """A concrete implementation of Table for interacting with in-memory databases.
 
     This class provides methods for performing CRUD (Create, Read, Update, Delete) operations
     on 'memory tables' (actually, just a python sets). It implements the abstract methods
@@ -953,7 +973,7 @@ class MemoryTable[T](Table[T]):
 class SqlTable[T](Table[T], ABC):
     """Abstract base class for SQL-based tables.
 
-    This class extends the functionality of the :class:`Table` class to work with SQL databases.
+    This class extends the functionality of the Table class to work with SQL databases.
     It provides methods for interacting with SQL tables and manages the connection
     to the database.
 
@@ -1082,7 +1102,7 @@ class SqlTable[T](Table[T], ABC):
 
 @dataclass(slots=True)
 class SolidTable[T](SqlTable[T]):
-    """A concrete implementation of :class:`SqlTable` for interacting with SQLite databases.
+    """A concrete implementation of SqlTable for interacting with SQLite databases.
 
     This class provides methods for performing CRUD (Create, Read, Update, Delete) operations
     on SQLite tables. It implements the abstract methods defined in SqlTable and Table classes.

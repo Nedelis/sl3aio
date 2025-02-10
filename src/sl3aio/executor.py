@@ -1,3 +1,123 @@
+"""
+Description
+-----------
+This module provides asynchronous wrappers and utilities for working with SQLite databases
+in Python. It offers a set of classes that enable efficient, thread-safe, and consistent
+execution of SQLite operations within an asynchronous context.
+
+The module is designed to work seamlessly with Python's asyncio framework, providing
+an intuitive API for database operations in asynchronous applications.
+
+.. Note::
+    - This module is designed for use with SQLite databases and may not be suitable for other database systems.
+    - All database operations are executed in a consistent order, which may impact performance in some scenarios.
+    - The module leverages Python's asyncio framework, so it should be used within an asynchronous context.
+
+
+Key Components
+--------------
+- :class:`ConsistentExecutor`: Ensures consistent order of execution for queued tasks.
+- :class:`ConnectionManager`: Handles SQLite database connections asynchronously.
+- :class:`CursorManager`: Manages SQLite cursor operations asynchronously.
+
+
+Other Components
+----------------
+- :class:`Executor`: Base class for asynchronous execution of synchronous functions.
+- :class:`Connector`: Manages SQLite connection parameters.
+- :obj:`Parameters`: Type alias for the allowed SQL parameters.
+
+
+Usage Examples
+--------------
+- Basic Usage with In-Memory Database:
+
+.. code-block:: python
+
+    import asyncio
+    from sl3aio.executor import ConnectionManager, Connector
+
+    async def main():
+        connector = Connector(":memory:")
+        async with ConnectionManager(connector) as cm:
+            # Create a table
+            await cm.execute("CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT)")
+            
+            # Insert data
+            await cm.execute("INSERT INTO users (name) VALUES (?)", ("Alice",))
+            await cm.execute("INSERT INTO users (name) VALUES (?)", ("Bob",))
+            
+            # Query data
+            cursor = await cm.execute("SELECT * FROM users")
+            users = await cursor.fetch()
+            
+            for user in users:
+                print(f"User: {user}")
+
+    asyncio.run(main())
+
+- Using CursorManager for Iteration:
+
+.. code-block:: python
+
+    import asyncio
+    from sl3aio.executor import ConnectionManager, Connector
+
+    async def main():
+        connector = Connector(":memory:")
+        async with ConnectionManager(connector) as cm:
+            await cm.execute("CREATE TABLE numbers (n INTEGER)")
+            await cm.executemany("INSERT INTO numbers VALUES (?)", [(i,) for i in range(10)])
+            
+            cursor = await cm.execute("SELECT * FROM numbers")
+            async for row in cursor:
+                print(f"Number: {row[0]}")
+
+    asyncio.run(main())
+
+- Transaction Management:
+
+.. code-block:: python
+
+    import asyncio
+    from sl3aio.executor import ConnectionManager, Connector
+
+    async def main():
+        connector = Connector(":memory:")
+        async with ConnectionManager(connector) as cm:
+            await cm.execute("CREATE TABLE accounts (id INTEGER PRIMARY KEY, balance REAL)")
+            
+            try:
+                await cm.execute("INSERT INTO accounts (balance) VALUES (?)", (100,))
+                await cm.execute("UPDATE accounts SET balance = balance - ? WHERE id = ?", (50, 1))
+                await cm.execute("UPDATE accounts SET balance = balance + ? WHERE id = ?", (50, 2))
+                await cm.commit()
+                print("Transaction committed successfully")
+            except Exception as e:
+                await cm.rollback()
+                print(f"Transaction rolled back: {e}")
+
+    asyncio.run(main())
+
+- Using ConsistentExecutor for Ordered Task Execution:
+
+.. code-block:: python
+
+    import asyncio
+    from sl3aio.executor import ConsistentExecutor
+
+    async def main():
+        async with ConsistentExecutor() as executor:
+            def task(n):
+                print(f"Executing task {n}")
+                return f"Result {n}"
+
+            futures = [executor(task, i) for i in range(5)]
+            results = await asyncio.gather(*futures)
+            print("Results:", results)
+
+    asyncio.run(main())
+"""
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import InitVar, dataclass, field, replace
 from asyncio import AbstractEventLoop, Future, Queue, Task, get_running_loop, create_task
@@ -420,10 +540,7 @@ class ConnectionManager(ConsistentExecutor):
         return obj
     
     def __init__(self, *_, **__) -> None:
-        """Initialize the ConnectionManager.
-
-        This method is intentionally left empty as initialization is handled in __new__.
-        """
+        pass
 
     @property
     def connector(self) -> Connector:
@@ -550,19 +667,109 @@ class ConnectionManager(ConsistentExecutor):
 
 @dataclass(slots=True)
 class CursorManager:
+    """A class that manages SQLite cursor operations asynchronously.
+
+    This class works in conjunction with the ConnectionManager to provide a consistent,
+    thread-safe way to interact with SQLite cursors. It wraps cursor operations and
+    ensures they are executed in the order they are called, using the underlying
+    ConnectionManager's execution queue.
+
+    Notes
+    -----
+    - The CursorManager is typically created by the ConnectionManager's execute methods.
+    - It provides asynchronous versions of standard cursor operations like execute, 
+      executemany, and fetch.
+    - The class implements the async iterator protocol, allowing for easy iteration 
+      over query results.
+
+    See Also
+    --------
+    :class:`ConnectionManager`
+    :class:`Connector`
+    """
     connection_manager: ConnectionManager
+    """The ConnectionManager instance associated with this cursor."""
     _cursor: Cursor
+    """The underlying SQLite cursor object."""
     
     async def execute(self, sql: str, parameters: Parameters = ()) -> Self:
+        """Execute a SQL query with optional parameters.
+
+        This method executes a single SQL statement and returns a new CursorManager
+        instance with the updated cursor.
+
+        Parameters
+        ----------
+        sql : `str`
+            The SQL query to execute.
+        parameters : :obj:`Parameters`, optional
+            The parameters for the SQL query.
+
+        Returns
+        -------
+        :class:`CursorManager`
+            A new CursorManager instance with the updated cursor.
+        """
         return replace(self, _cursor=await self.connection_manager(self._cursor.execute, sql, parameters))
     
     async def executemany(self, sql: str, parameters: Iterable[Parameters]) -> Self:
+        """Execute a SQL query multiple times with different sets of parameters.
+
+        This method executes the same SQL statement for each set of parameters and
+        returns a new CursorManager instance with the updated cursor.
+
+        Parameters
+        ----------
+        sql : `str`
+            The SQL query to execute.
+        parameters : `Iterable` [:obj:`Parameters`]
+            An iterable of parameter sets for the SQL query.
+
+        Returns
+        -------
+        :class:`CursorManager`
+            A new CursorManager instance with the updated cursor.
+        """
         return replace(self, _cursor=await self.connection_manager(self._cursor.executemany, sql, parameters))
 
     async def executescript(self, sql_script: str) -> Self:
+        """Execute a SQL script.
+
+        This method executes multiple SQL statements in a script and returns a new
+        CursorManager instance with the updated cursor.
+
+        Parameters
+        ----------
+        sql_script : `str`
+            The SQL script to execute.
+
+        Returns
+        -------
+        :class:`CursorManager`
+            A new CursorManager instance with the updated cursor.
+        """
         return replace(self, _cursor=await self.connection_manager(self._cursor.executescript, sql_script))
     
     async def fetch(self, start: int = 0, stop: int | None = None, step: int = 1) -> list:
+        """Fetch a range of results from the cursor.
+
+        This method allows for pagination-like functionality by specifying start,
+        stop, and step parameters.
+
+        Parameters
+        ----------
+        start : `int`, optional
+            The index to start fetching from (default is 0).
+        stop : `int` | `None`, optional
+            The index to stop fetching at (default is None, which means fetch all).
+        step : `int`, optional
+            The step size between fetched items (default is 1).
+
+        Returns
+        -------
+        `list`
+            A list of fetched results.
+        """
         result = []
         try:
             i = 0
@@ -579,9 +786,25 @@ class CursorManager:
             return result
         
     async def fetchone(self) -> Any | None:
+        """Fetch the next row of a query result set.
+
+        Returns
+        -------
+        `Any` | `None`
+            The next row of a query result set, or None if no more data is available.
+        """
         return await anext(self, None)
 
     async def __aiter__(self) -> AsyncGenerator[Any, Any | None]:
+        """Implement the async iterator protocol.
+
+        This method allows the CursorManager to be used in async for loops.
+
+        Yields
+        ------
+        `Any`
+            The next row of the query result set.
+        """
         while True:
             try:
                 yield await anext(self)
@@ -589,6 +812,20 @@ class CursorManager:
                 break
 
     async def __anext__(self) -> Any:
+        """Implement the async iterator protocol.
+
+        This method fetches the next row from the cursor.
+
+        Returns
+        -------
+        `Any`
+            The next row of the query result set.
+
+        Raises
+        ------
+        `StopAsyncIteration`
+            When there are no more rows to fetch.
+        """
         if (result := await self.connection_manager(next, self._cursor, None)) is None:
             raise StopAsyncIteration()
         return result

@@ -1,4 +1,3 @@
-from sphinxawesome_theme.postprocess import Icons
 from pathlib import Path
 from sys import path
 
@@ -11,15 +10,15 @@ release = '1.3.0-rc1'
 
 extensions = [
     'sphinx.ext.autodoc',
-    'sphinx.ext.viewcode',
-    'sphinx.ext.napoleon'
+    'sphinx.ext.napoleon',
+    'sphinx_copybutton'
 ]
 
 autodoc_member_order = 'bysource'
+autodoc_typehints = 'description'
 
 templates_path = ['_templates']
 exclude_patterns = []
 
-html_theme = 'sphinxawesome_theme'
-html_permalinks_icon = Icons.permalinks_icon
+html_theme = 'shibuya'
 html_static_path = ['_static']

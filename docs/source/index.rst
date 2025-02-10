@@ -2,10 +2,24 @@ sl3aio documentation
 ====================
 
 .. toctree::
-   :maxdepth: 2
-   :caption: Modules
+   :caption: Getting started
+   :hidden:
 
-   easytable
-   dataparser
-   table
-   executor
+   installation
+
+.. toctree::
+   :caption: Examples
+   :hidden:
+
+   examples/general
+   examples/advanced
+
+.. toctree::
+   :caption: Modules
+   :hidden:
+
+   modules/easytable
+   modules/dataparser
+   modules/table
+   modules/executor
+   
