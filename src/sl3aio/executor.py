@@ -373,7 +373,7 @@ class ConsistentExecutor(Executor):
             raise args[1]
 
 
-@dataclass(slots=True)
+@dataclass(slots=True, frozen=True)
 class Connector:
     """This class allows to save and reuse parameters of the
     `sqlite3.connect <https://docs.python.org/3/library/sqlite3.html#sqlite3.connect>`_ method. Every
@@ -392,7 +392,7 @@ class Connector:
         # Establish a connection to the database
         connection = connector()
     """
-    database_: InitVar[str | bytes | Path | Literal[':memory:']]
+    dbfile: InitVar[str | bytes | Path | Literal[':memory:']]
     """Specifies the path to the database file. Every value except the ':memory:' will be interpreted as a path.
 
     .. Note::
@@ -408,20 +408,20 @@ class Connector:
     autocommit: bool = False
     database: Path | Literal[':memory:'] = field(init=False)
 
-    def __post_init__(self, database_: str | bytes | Path) -> None:
-        if database_ == ':memory:':
-            self.database = database_
+    def __post_init__(self, dbfile: str | bytes | Path) -> None:
+        if dbfile == ':memory:':
+            object.__setattr__(self, 'database', dbfile)
             return
-        elif isinstance(database_, str):
-            database_ = Path(database_)
-        elif isinstance(database_, (bytes, bytearray)):
-            database_ = Path(database_.decode())
-        elif isinstance(database_, memoryview):
-            database_ = Path(database_.tobytes().decode())
-        self.database = database_.resolve()
+        elif isinstance(dbfile, str):
+            dbfile = Path(dbfile)
+        elif isinstance(dbfile, (bytes, bytearray)):
+            dbfile = Path(dbfile.decode())
+        elif isinstance(dbfile, memoryview):
+            dbfile = Path(dbfile.tobytes().decode())
+        object.__setattr__(self, 'database', dbfile.resolve())
         self.database.touch()
     
-    def __call__(self) -> Connection:
+    def connect(self) -> Connection:
         """This method establishes and returns a connection to the database with specified parameters.
         
         Returns
@@ -451,6 +451,16 @@ class Connector:
             uri=self.uri,
             autocommit=self.autocommit
         )
+    
+    def connection_manager(self) -> 'ConnectionManager':
+        """This method returns a ConnectionManager instance with pre-defined connector parameter.
+        
+        Returns
+        -------
+        :class:`ConnectionManager`
+            An instance of the connection manager associated with the current connector.
+        """
+        return ConnectionManager(self)
 
 
 @dataclass(slots=True, init=False)
@@ -528,7 +538,7 @@ class ConnectionManager(ConsistentExecutor):
         if (database := str(connector.database)) in cls._instances:
             return cls._instances[database]
         super(ConnectionManager, obj := super(ConnectionManager, cls).__new__(cls)).__init__()
-        obj._connector = replace(connector, check_same_thread=False)
+        obj._connector = replace(connector, dbfile=connector.database, check_same_thread=False)
         obj._connection = None
         cls._instances[database] = obj
         return obj
@@ -538,8 +548,8 @@ class ConnectionManager(ConsistentExecutor):
 
     @property
     def connector(self) -> Connector:
-        """Get a copy of the current Connector."""
-        return replace(self._connector)
+        """Get the Connector object used to create the database connection."""
+        return self._connector
 
     @property
     def database(self) -> str:
@@ -611,7 +621,7 @@ class ConnectionManager(ConsistentExecutor):
         :meth:`ConsistentExecutor.start`
         """
         if await super(ConnectionManager, self).start():
-            self._connection = self._connector()
+            self._connection = self._connector.connect()
 
     async def stop(self) -> None:
         """Stop the connection manager and close the database connection.
@@ -642,7 +652,7 @@ class ConnectionManager(ConsistentExecutor):
         await self.stop()
         if connector.database != self._connector.database:
             await self.remove()
-        self._connector = replace(connector, check_same_thread=False)
+        self._connector = replace(connector, dbfile=connector.database, check_same_thread=False)
         if running:
             await self.start()
 

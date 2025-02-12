@@ -11,8 +11,8 @@ sl3aio
 
 .. container:: buttons
 
-   `Docs <./installation.html>`_
-   `GitHub <https://github.com/Nedelis/sl3aio>`_
+   `Start <./installation.html>`_
+   `Source <https://github.com/Nedelis/sl3aio>`_
 
 .. toctree::
    :caption: Getting started

@@ -616,12 +616,7 @@ class Table[T](ABC):
         return await self._record_type.make(*args, **kwargs)
     
     async def start_executor(self) -> None:
-        """Start the table's executor.
-        
-        .. Warning::
-            You must call this method or use table's async context manager before acessing the table,
-            otherwise the program will await for the request to complete forever.
-        """
+        """Start the table's executor."""
         await self._executor.start()
     
     async def stop_executor(self) -> None:
@@ -909,6 +904,11 @@ class MemoryTable[T](Table[T]):
     on 'memory tables' (actually, just a python sets). It implements the abstract methods
     defined in Table class.
 
+    .. Warning::
+        You must call :meth:`MemoryTable.start_executor` or enter table's async context using
+        ``async with table`` construction before acessing the table, otherwise the  program will await
+        for the request to complete forever.
+
     See Also
     --------
     :class:`TableColumn`
@@ -998,6 +998,10 @@ class SqlTable[T](Table[T], ABC):
     async def from_database[T](cls, name: str, executor: ConnectionManager) -> 'SqlTable[T]':        
         """Create a SqlTable instance from an existing database table.
 
+        .. Warning::
+            Before awaiting this function, make sure that the executor is running, otherwise the program will
+            freeze.
+
         Parameters
         ----------
         name : `str`
@@ -1030,34 +1034,6 @@ class SqlTable[T](Table[T], ABC):
                 pass
             columns.append(TableColumn.from_sql(column_sql, default))
         return cls(name, tuple(columns), executor)
-
-    async def _execute_where(self, query: str, record: TableRecord[T], parameters: Parameters = ()) -> CursorManager:
-        """Execute a SQL query with a WHERE clause based on the given record.
-
-        Parameters
-        ----------
-        query : `str`
-            The SQL query to execute.
-        record : :class:`TableRecord` [`T`]
-            The record to use for the WHERE clause.
-        parameters : :obj:`sl3aio.executor.Parameters`, optional
-            Additional parameters for the query.
-
-        Returns
-        -------
-        :class:`CursorManager`
-            A cursor manager for the executed query.
-        """
-        if self._record_type.nonrepeating:
-            key = record.nonrepeating[0]
-            return await self._executor.execute(f'{query} WHERE {key} = ?', (*parameters, getattr(record, key)))
-        elif None in record:
-            values = await record.executor(dict, ((k, v) for k in record.fields if (v := getattr(record, k)) is not None))
-            return await self._executor.execute(
-                f'{query} WHERE ' + self._executor(' AND '.join, (f'{k} = ?' for k in values)),
-                (*parameters, *values.values())
-            )
-        return await self._executor.execute(f'{query} {self._default_selector}', (*parameters, *record))
 
     @abstractmethod
     async def exists(self) -> bool:
@@ -1099,6 +1075,11 @@ class SolidTable[T](SqlTable[T]):
     This class provides methods for performing CRUD (Create, Read, Update, Delete) operations
     on SQLite tables. It implements the abstract methods defined in SqlTable and Table classes.
 
+    .. Warning::
+        You must call :meth:`SolidTable.start_executor` or enter table's async context using
+        ``async with table`` construction before acessing the table, otherwise the  program will await
+        for the request to complete forever.
+
     See Also
     --------
     :class:`TableColumn`
@@ -1106,6 +1087,34 @@ class SolidTable[T](SqlTable[T]):
     :class:`SqlTable`
     :class:`Table`
     """
+    async def _execute_where(self, query: str, record: TableRecord[T], parameters: Parameters = ()) -> CursorManager:
+        """Execute a SQL query with a WHERE clause based on the given record.
+
+        Parameters
+        ----------
+        query : `str`
+            The SQL query to execute.
+        record : :class:`TableRecord` [`T`]
+            The record to use for the WHERE clause.
+        parameters : :obj:`sl3aio.executor.Parameters`, optional
+            Additional parameters for the query.
+
+        Returns
+        -------
+        :class:`CursorManager`
+            A cursor manager for the executed query.
+        """
+        if self._record_type.nonrepeating:
+            key = record.nonrepeating[0]
+            return await self._executor.execute(f'{query} WHERE {key} = ?', (*parameters, getattr(record, key)))
+        elif None in record:
+            values = await record.executor(dict, ((k, v) for k in record.fields if (v := getattr(record, k)) is not None))
+            return await self._executor.execute(
+                f'{query} WHERE ' + self._executor(' AND '.join, (f'{k} = ?' for k in values)),
+                (*parameters, *values.values())
+            )
+        return await self._executor.execute(f'{query} {self._default_selector}', (*parameters, *record))
+
     async def length(self) -> int:
         return await (await self._executor.execute(f'SELECT MAX(rowid) FROM "{self.name}"')).fetchone()[0]
 
