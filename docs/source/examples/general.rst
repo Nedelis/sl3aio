@@ -13,7 +13,7 @@ Using existing database
 If you already have some SQLite3 database with existing tables and you want to use it asynchronously with sl3aio,
 you can create a ``SolidTable`` instance using the ``SolidTable.from_database`` method. Here's an example:
 
-First of all, import the necessary classes from the module.
+First of all, import the necessary classes from the module:
 
 .. code-block:: python
 
@@ -22,10 +22,10 @@ First of all, import the necessary classes from the module.
 .. Hint::
     :class: dropdown
 
-    - ``Connector`` is used to make connections.
+    - ``Connector`` is used to make connections to sqlite databases.
     - ``SolidTable`` represents a table inside SQLite database.
 
-Then connect to your database and load the table(-s).
+Then connect to your database and load the table(-s):
 
 .. code-block:: python
 
@@ -44,10 +44,160 @@ Now you can operate on the table.
 
 ----
 
+Creating memory table
+---------------------
+
+If you do not need to save the database to disk and there will not be a large number of records in it,
+then creating tables in memory may be suitable for you.
+
+By default, sl3aio provides 2 ways to create databases in memory.
+
+Option 1: Using sl3aio's memory table
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+First, import the necessary classes:
+
+.. code-block:: python
+
+    from sl3aio import MemoryTable, TableColumn
+
+.. Hint::
+    :class: dropdown
+
+    - ``MemoryTable`` is used to create tables in memory.
+    - ``TableColumn`` is used to define table columns.
+
+The, mark up the table:
+
+.. code-block:: python
+
+    # Parameters:
+    # name: the name of the table.
+    # _columns: a tuple of TableColumn objects that define the columns in the table.
+    table = MemoryTable(
+        name='my_table',
+        _columns=(
+            TableColumn(name='id', typename='INTEGER', primary=True),
+            TableColumn(name='name', typename='TEXT'),
+            TableColumn(name='email', typename='TEXT'),
+        )
+    )
+
+.. Hint::
+    :class: dropdown
+
+    You can pass this parameters inside the ``TableColumn`` class' constructor:
+
+    - ``name`` (str): the name of the column.
+    - ``typename`` (str): the data type name of the column (the same as in sqlite). 
+    - ``default`` (any, optional): a default value for the column; defaults to None.
+    - ``generator`` (TableColumnGenerator, optional): a value generator for the column; defaults to None.
+      Visit `advanced examples page <./advanced.html>`_ to see a usage of this parameter.
+    - ``primary`` (bool): if the column is the primary key.
+    - ``unique`` (bool): if the column should be unique.
+    - ``nullable`` (bool): whether the column can be NULL or not.
+
+.. Warning::
+    Never instantiate ``MemoryTable`` outside of the async context, otherwise the program will fail with
+    ``RuntimeError: no running event loop``.
+
+Now you can operate on the table.
+
+Option 2: Using in-memory SQLite database
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+As in the first option, import the necessary classes:
+
+.. code-block:: python
+
+    from sl3aio import Connector, SolidTable, TableColumn
+
+.. Hint::
+    :class: dropdown
+
+    - ``Connector`` is used to make connection to SQLite in-memory database.
+    - ``SolidTable`` will be used to address an in-memory table.
+    - ``TableColumn`` is used to define table columns.
+
+Create and run a connection manager to the in-memory SQLite database:
+
+.. code-block:: python
+
+    cm = Connector(':memory:').connection_manager()
+    await cm.start()
+
+.. Hint::
+    :class: dropdown
+
+    ``connection_manager`` method creates a ``ConnectionManager``, object that allows you to safely perform
+    asynchronous queries to the table.
+
+Then, mark up the table:
+
+.. code-block:: python
+
+    # Parameters:
+    # name: the name of the table.
+    # _columns: a tuple of TableColumn objects that define the columns in the table.
+    # _executor: ConnectionManager instance.
+    table = SolidTable(
+        name='my_table',
+        _columns=(
+            TableColumn(name='id', typename='INTEGER', primary=True),
+            TableColumn(name='name', typename='TEXT'),
+            TableColumn(name='email', typename='TEXT'),
+        ),
+        _executor=cm
+    )
+
+.. Hint::
+    :class: dropdown
+
+    You can pass this parameters inside the ``TableColumn`` class' constructor:
+
+    - ``name`` (str): the name of the column.
+    - ``typename`` (str): the data type name of the column (the same as in sqlite). 
+    - ``default`` (any, optional): a default value for the column; defaults to None.
+    - ``generator`` (TableColumnGenerator, optional): a value generator for the column; defaults to None.
+      Visit `advanced examples page <./advanced.html>`_ to see a usage of this parameter.
+    - ``primary`` (bool): if the column is the primary key.
+    - ``unique`` (bool): if the column should be unique.
+    - ``nullable`` (bool): whether the column can be NULL or not.
+
+.. Warning::
+    Never instantiate ``SolidTable`` outside of the async context, otherwise the program will fail with
+    ``RuntimeError: no running event loop``.
+
+Finally, create the table using its ``create`` method:
+
+.. code-block:: python
+
+    await table.create()
+
+.. Important::
+    Don't forget to close the database connection after you finish working with the SQLite in-memory database:
+
+    .. code-block:: python
+
+        await cm.stop()
+
+    You can also remove ConnectionManager for the ``:memory:`` database using the ``remove`` method on the
+    connection manager object (it will stop the manager before removal):
+
+    .. code-block:: python
+
+        await cm.remove()
+
+    And keep in mind that your database will be erased after the connection is closed.
+
+Now you can operate on the table.
+
+----
+
 Accessing the table
 -------------------
 
-Now that you have obtained the table using one of the methods above, you can operate on it.
+Now, when you have obtained the table using one of the methods above, you can operate on it.
 
 .. Note::
     Before accessing the table, you must first enter the table's connection manager:
@@ -113,7 +263,7 @@ You can also select records that matching concrete conditions using predicate.
 .. Hint::
     :class: dropdown
 
-    The ``select_one`` and ``select`` methods takes callable, that returns the boolean value based on the
+    The ``select_one`` and ``select`` methods takes async callable, that returns the boolean value based on the
     record, that is given to it, as the optional parameter.
 
 To update records inside the table use one of the ``update_one``, ``updated`` and ``update`` methods:
@@ -133,8 +283,8 @@ To update records inside the table use one of the ``update_one``, ``updated`` an
 .. Hint::
     :class: dropdown
 
-    - The ``updated`` method updates and yields all records, that matched the predicate;
-      the ``update`` method updates all records, that matched the predicate without yielding them.
+    - The ``updated`` method updates and yields all records, that matched the predicate.
+    - The ``update`` method updates all records, that matched the predicate without yielding them.
     - The ``update_one``, ``updated`` and ``update`` methods takes predicate as the optional parameter, and values
       to update as the keyword arguments.
 
@@ -155,8 +305,8 @@ To delete records from the table use one of the ``delete_one``, ``pop`` and ``de
 .. Hint::
     :class: dropdown
 
-    - The ``pop`` method removes and yields all records, that matched the predicate;
-      the ``delete`` method removes all records, that matched the predicate without yielding them.
+    - The ``pop`` method removes and yields all records, that matched the predicate.
+    - The ``delete`` method removes all records, that matched the predicate without yielding them.
     - The ``delete_one``, ``pop`` and ``delete`` methods takes predicate as the optional parameter.
 
 .. Finally, put all the code inside the main asynchronous function and run it using ``asyncio.run`` method.
