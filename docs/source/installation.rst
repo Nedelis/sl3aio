@@ -1,3 +1,5 @@
+:description: Installation guide for the sl3aio library.
+
 Installation
 ============
 

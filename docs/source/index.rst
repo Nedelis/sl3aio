@@ -1,5 +1,5 @@
-:layout: landing
 :description: Python library that adds safe async to the sqlite3.
+:layout: landing
 
 sl3aio
 ======

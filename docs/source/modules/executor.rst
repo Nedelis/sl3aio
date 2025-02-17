@@ -1,3 +1,5 @@
+:description: Documentation of the sl3aio executor module.
+
 executor
 ========
 
