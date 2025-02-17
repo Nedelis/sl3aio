@@ -190,7 +190,7 @@ from math import trunc, floor, ceil
 from functools import partial
 from collections.abc import AsyncIterator, Callable, Container
 from dataclasses import dataclass, replace
-from typing import Any, Self, Concatenate, get_args
+from typing import Any, Self, Concatenate, get_args, get_origin
 from .dataparser import Parser
 from .table import Table, TableColumn, TableRecord, TableSelectionPredicate, TableColumnValueGenerator
 
@@ -238,6 +238,7 @@ class EasySelector[T]:
     .. Attention::
         Change this field only if you know what you are doing.
     """
+    _predicate: TableSelectionPredicate[T] | None = None
 
     def as_predicate(self) -> TableSelectionPredicate[T]:
         """Creates a predicate function based on the current selector.
@@ -247,10 +248,12 @@ class EasySelector[T]:
         :class:`sl3aio.table.TableSelectionPredicate` [`T`]
             An async function that takes a record and returns a boolean.
         """
-        async def __predicate(record: TableRecord[T]) -> bool:
-            nonlocal self
-            return (await record.executor(self.apply, record))[0]
-        return __predicate
+        if self._predicate is None:
+            async def __predicate(record: TableRecord[T]) -> bool:
+                nonlocal self
+                return (await record.executor(self.apply, record))[0]
+            self._predicate = __predicate
+        return self._predicate
     
     def pin_table(self, table: Table[T]) -> Self:
         """Creates a new EasySelector with the specified table.
@@ -323,18 +326,18 @@ class EasySelector[T]:
         """
         return await anext(self.select(table), None)
     
-    async def pop(self, table: Table[T] | None = None) -> AsyncIterator[TableRecord[T]]:
+    async def deleted(self, table: Table[T] | None = None) -> AsyncIterator[TableRecord[T]]:
         """Selects and removes records from the table based on the current selector.
 
         Parameters
         ----------
         table : :class:`sl3aio.table.Table` [`T`] | `None`, optional
-            The table to pop from. If None, uses the pinned table. Defaults to None.
+            The table to delete from. If None, uses the pinned table. Defaults to None.
 
         Returns
         -------
         `AsyncIterator` [:class:`sl3aio.table.TableRecord` [`T`]]
-            An async iterator of popped records.
+            An async iterator of deleted records.
         
         See Also
         --------
@@ -342,7 +345,7 @@ class EasySelector[T]:
         :meth:`EasySelector.delete_one`
         """
         async with (table or self.table) as table:    
-            async for record in table.pop(self.as_predicate()):
+            async for record in table.deleted(self.as_predicate()):
                 yield record
     
     async def delete(self, table: Table[T] | None = None) -> None:
@@ -355,10 +358,10 @@ class EasySelector[T]:
         
         See Also
         --------
-        :meth:`EasySelector.pop`
+        :meth:`EasySelector.deleted`
         :meth:`EasySelector.delete_one`
         """
-        async for _ in self.pop(table):
+        async for _ in self.deleted(table):
             pass
 
     async def delete_one(self, table: Table[T] | None = None) -> TableRecord[T] | None:
@@ -376,10 +379,10 @@ class EasySelector[T]:
         
         See Also
         --------
-        :meth:`EasySelector.pop`
+        :meth:`EasySelector.deleted`
         :meth:`EasySelector.delete`
         """
-        return await anext(self.pop(table), None)
+        return await anext(self.deleted(table), None)
     
     async def updated(self, table: Table[T], **to_update: T) -> AsyncIterator[TableRecord[T]]:
         """Updates records in the table that match the current selector.
@@ -914,8 +917,31 @@ class EasyColumn[T]:
         )
 
 
+class _EasyTableMeta[T](type):
+    _columns: tuple[Callable[[], TableColumn[T]], ...]
+    
+    def __new__(meta, name: str, bases: tuple[type, ...], namespace: dict[str, Any]) -> '_EasyTableMeta':
+        cls = super().__new__(meta, name, bases, namespace)
+        columns = []
+        for column_name, column_type in cls.__annotations__.items():
+            if get_origin(column_type) != EasySelector:
+                continue
+            elif not isinstance(value := getattr(cls, column_name, None), EasyColumn):
+                value = EasyColumn(value)
+            try:
+                delattr(cls, column_name)
+            except AttributeError:
+                pass
+            columns.append(partial(value.to_column, column_name, get_args(column_type)[0]))
+        cls._columns = tuple(columns)
+        return cls
+    
+    def columns(cls) -> tuple[TableColumn[T],...]:
+        return tuple(map(operator.__call__, cls._columns))
+
+
 @dataclass(slots=True)
-class EasyTable[T]:
+class EasyTable[T](metaclass=_EasyTableMeta[T]):
     """A class representing an easy-to-use selection interface for database tables.
 
     This class provides methods for common database operations such as inserting,
@@ -932,7 +958,7 @@ class EasyTable[T]:
     """The underlying database table."""
 
     @classmethod
-    def columns(cls) -> tuple[TableColumn[T], ...]:
+    def columns(cls) -> tuple[TableColumn[T],...]:
         """Get the columns of the table from the fields of the subclass.
 
         Returns
@@ -940,18 +966,7 @@ class EasyTable[T]:
         `tuple` [:class:`sl3aio.table.TableColumn` [`T`], `...`]
             A tuple of TableColumn objects representing the table's columns.
         """
-        columns = []
-        for column_name, column_type in cls.__annotations__.items():
-            if column_name in cls.__slots__:
-                continue
-            if not isinstance(value := getattr(cls, column_name, None), EasyColumn):
-                value = EasyColumn(value)
-            try:
-                delattr(cls, column_name)
-            except AttributeError:
-                pass
-            columns.append(value.to_column(column_name, get_args(column_type)[0]))
-        return tuple(columns)
+        return type(cls).columns(cls)
     
     async def length(self) -> int:
         """Get the number of records in the table.
@@ -1065,8 +1080,27 @@ class EasyTable[T]:
         """
         return await anext(self.select(predicate), None)
     
-    async def pop(self, predicate: TableSelectionPredicate[T] | None = None) -> AsyncIterator[TableRecord[T]]:
-        """Remove and return records from the table based on a predicate.
+    async def count(self, predicate: TableSelectionPredicate[T] | None = None) -> int:
+        """Count the number of records in the table that match the predicate.
+
+        .. Note::
+            If no predicate is specified, the result will be the same as for the :meth:`Table.length` method.
+        
+        Parameters
+        ----------
+        predicate : :class:`sl3aio.table.TableSelectionPredicate` [`T`] | `None`, optional
+            A predicate to filter the records. Defaults to None.
+
+        Returns
+        -------
+        `int`
+            Number of records that match the predicate.
+        """
+        async with self.table:
+            return await self.table.count(predicate)
+    
+    async def deleted(self, predicate: TableSelectionPredicate[T] | None = None) -> AsyncIterator[TableRecord[T]]:
+        """Remove and yield deleted records from the table based on a predicate.
 
         Parameters
         ----------
@@ -1084,7 +1118,7 @@ class EasyTable[T]:
         :meth:`EasyTable.delete_one`
         """
         async with self.table:
-            async for record in self.table.pop(predicate):
+            async for record in self.table.deleted(predicate):
                 yield record
     
     async def delete(self, predicate: TableSelectionPredicate[T] | None = None) -> None:
@@ -1097,10 +1131,10 @@ class EasyTable[T]:
         
         See Also
         --------
-        :meth:`EasyTable.pop`
+        :meth:`EasyTable.deleted`
         :meth:`EasyTable.delete_one`
         """
-        async for _ in self.pop(predicate):
+        async for _ in self.deleted(predicate):
             pass
 
     async def delete_one(self, predicate: TableSelectionPredicate[T] | None = None) -> TableRecord[T] | None:
@@ -1118,10 +1152,10 @@ class EasyTable[T]:
         
         See Also
         --------
-        :meth:`EasyTable.pop`
+        :meth:`EasyTable.deleted`
         :meth:`EasyTable.delete`
         """
-        return await anext(self.pop(predicate), None)
+        return await anext(self.deleted(predicate), None)
     
     async def updated(self, predicate: TableSelectionPredicate[T] | None = None, **to_update: T) -> AsyncIterator[TableRecord[T]]:
         """Update records in the table based on a predicate and return the updated records.

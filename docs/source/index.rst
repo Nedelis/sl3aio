@@ -19,7 +19,7 @@ sl3aio
    :hidden:
 
    installation
-   examples/general
+   examples/general/index
    examples/advanced
 
 .. toctree::

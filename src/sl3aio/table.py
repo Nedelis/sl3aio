@@ -493,7 +493,7 @@ class TableColumn[T]:
     """Whether this column can contain NULL values. Defaults to `True`."""
 
     @classmethod
-    def from_sql[T](cls, sql: str, default: T | None = None) -> 'TableColumn[T]':
+    def from_sql[T](cls, sql: str, default: T | TableColumnValueGenerator[T] | None = None) -> 'TableColumn[T]':
         """Create a TableColumn instance from an SQL column definition.
 
         .. Note::
@@ -507,7 +507,7 @@ class TableColumn[T]:
         sql : `str`
             The SQL definition of the column.
         default : `T` | `None`, optional
-            The default value for the column.
+            The default value or default value generator for the column.
 
         Returns
         -------
@@ -515,10 +515,7 @@ class TableColumn[T]:
             A new TableColumn instance.
         """
         name, typename = sql.split(' ', 2)[:2]
-        if isinstance(default, str) and default.startswith('$Generated:'):
-            generator = TableColumnValueGenerator.get_by_name(default[11:])
-        else:
-            generator = None
+        default, generator = (None, default) if isinstance(default, TableColumnValueGenerator) else (default, None)
         return cls(name, typename, default, generator, 'PRIMARY KEY' in sql, 'UNIQUE' in sql, 'NOT NULL' not in sql)
 
     def to_sql(self) -> str:
@@ -731,10 +728,33 @@ class Table[T](ABC):
         :meth:`Table.select`
         """
         return await anext(self.select(predicate), None)
+
+    async def count(self, predicate: TableSelectionPredicate[T] | None = None) -> int:
+        """Count the number of records in the table that match the predicate.
+
+        .. Note::
+            If no predicate is specified, the result will be the same as for the :meth:`Table.length` method.
+        
+        Parameters
+        ----------
+        predicate : :class:`TableSelectionPredicate` [`T`] | `None`, optional
+            A predicate to filter the records. Defaults to None.
+
+        Returns
+        -------
+        `int`
+            Number of records that match the predicate.
+        """
+        if predicate is not None:
+            count = 0
+            async for _ in self.select(predicate):
+                count += 1
+            return count
+        return await self.length()
     
     @abstractmethod
-    def pop(self, predicate: TableSelectionPredicate[T] | None = None) -> AsyncIterator[TableRecord[T]]:
-        """Remove and return records from the table.
+    def deleted(self, predicate: TableSelectionPredicate[T] | None = None) -> AsyncIterator[TableRecord[T]]:
+        """Remove and yield deleted records from the table.
 
         .. Note::
             If predicate isn't specified, yields the whole table and then clears it.
@@ -768,10 +788,10 @@ class Table[T](ABC):
 
         See Also
         --------
-        :meth:`Table.pop`
+        :meth:`Table.deleted`
         :meth:`Table.delete_one`
         """
-        async for _ in self.pop(predicate):
+        async for _ in self.deleted(predicate):
             pass
 
     async def delete_one(self, predicate: TableSelectionPredicate[T] | None = None) -> TableRecord[T] | None:
@@ -792,7 +812,7 @@ class Table[T](ABC):
         :meth:`Table.delete`
         :meth:`Table.delete_one`
         """
-        return await anext(self.pop(predicate), None)
+        return await anext(self.deleted(predicate), None)
     
     @abstractmethod
     def updated(self, predicate: TableSelectionPredicate[T] | None = None, **to_update: T) -> AsyncIterator[TableRecord[T]]:
@@ -940,7 +960,7 @@ class MemoryTable[T](Table[T]):
                 if await predicate(record):
                     yield record
     
-    async def pop(self, predicate: TableSelectionPredicate[T] | None = None) -> AsyncIterator[TableRecord[T]]:
+    async def deleted(self, predicate: TableSelectionPredicate[T] | None = None) -> AsyncIterator[TableRecord[T]]:
         if not predicate:
             for record in self._records.copy():
                 await self._executor(set.discard, self._records)
@@ -1028,10 +1048,13 @@ class SqlTable[T](Table[T], ABC):
             typename, default = await anext(columns_data)
             if isinstance(default, str) and (match_ := re_match(_RemoveQuotation, default)):
                 default = match_.group(1)
-            try:
-                default = Parser.get_by_typename(typename).loads(default)
-            except (TypeError, ValueError, AttributeError):
-                pass
+            if isinstance(default, str) and default.startswith('$Generated:'):
+                default = TableColumnValueGenerator.get_by_name(default[11:])
+            else:
+                try:
+                    default = Parser.get_by_typename(typename).loads(default)
+                except (TypeError, ValueError, AttributeError):
+                    pass
             columns.append(TableColumn.from_sql(column_sql, default))
         return cls(name, tuple(columns), executor)
 
@@ -1052,18 +1075,18 @@ class SqlTable[T](Table[T], ABC):
         Parameters
         ----------
         if_not_exists : `bool`, optional
-            If `True`, the table will be created if it does not already exist without throwing an
+            If `True`, the table will be created if it does not already exist without raising an
             exception. Defaults to `True`.
         """
 
     @abstractmethod
-    async def drop(self) -> None:
+    async def drop(self, if_exists: bool = True) -> None:
         """Drop the SQL table from the database.
 
         Parameters
         ----------
         if_exists : `bool`, optional
-            If `True`, the table will be dropped only if it already exists without throwing an
+            If `True`, the table will be dropped only if it already exists without raising an
             exception. Defaults to `True`.
         """
 
@@ -1138,7 +1161,7 @@ class SolidTable[T](SqlTable[T]):
                 if await predicate(record := await self._record_type.make(*record_data)):
                     yield record
     
-    async def pop(self, predicate: TableSelectionPredicate[T] | None = None) -> AsyncIterator[TableRecord[T]]:
+    async def deleted(self, predicate: TableSelectionPredicate[T] | None = None) -> AsyncIterator[TableRecord[T]]:
         if not predicate:
             async for record_data in await self._executor.execute(f'DELETE FROM "{self.name}" RETURNING *'):
                 yield await self._record_type.make(*record_data)

@@ -11,8 +11,10 @@ release = '1.3.0-rc1'
 extensions = [
     'sphinx.ext.autodoc',
     'sphinx.ext.napoleon',
+    'sphinx.ext.viewcode',
     'sphinx_copybutton',
-    'sphinx_togglebutton'
+    'sphinx_togglebutton',
+    'sphinx_design'
 ]
 
 autodoc_member_order = 'bysource'
