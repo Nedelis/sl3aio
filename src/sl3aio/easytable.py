@@ -183,7 +183,7 @@ Usage Examples
 
 See Also
 --------
-:mod:`sl3aio.table`: Native module for working with tables.
+:py:mod:`.table`: Native module for working with tables.
 """
 import operator
 from math import trunc, floor, ceil
@@ -205,7 +205,7 @@ def default_selector(previous, _: TableRecord) -> tuple[True, Any]:
     ----------
     previous : `Any`
         Value that was selected by selector previously.
-    _ : :class:`sl3aio.table.TableRecord`
+    _ : :py:class:`.TableRecord`
         The record that is being selected.
 
     Returns
@@ -228,7 +228,7 @@ class EasySelector[T]:
     
     See Also
     --------
-    :class:`sl3aio.table.TableSelectionPredicate`
+    :py:class:`.TableSelectionPredicate`
     """
     table: Table[T] | None = None
     """The database table to operate on. Optional, defaults to `None`."""
@@ -245,7 +245,7 @@ class EasySelector[T]:
 
         Returns
         -------
-        :class:`sl3aio.table.TableSelectionPredicate` [`T`]
+        :py:class:`.TableSelectionPredicate` [`T`]
             An async function that takes a record and returns a boolean.
         """
         if self._predicate is None:
@@ -260,7 +260,7 @@ class EasySelector[T]:
 
         Parameters
         ----------
-        table : :class:`sl3aio.table.Table` [`T`]
+        table : :py:class:`.Table` [`T`]
             The table to pin to the selector.
 
         Returns
@@ -275,7 +275,7 @@ class EasySelector[T]:
 
         Parameters
         ----------
-        record : :class:`sl3aio.table.TableRecord` [`T`]
+        record : :py:class:`.TableRecord` [`T`]
             The record to apply the selector to.
 
         Returns
@@ -291,12 +291,12 @@ class EasySelector[T]:
 
         Parameters
         ----------
-        table : :class:`sl3aio.table.Table` [`T`] | `None`, optional
+        table : :py:class:`.Table` [`T`] | `None`, optional
             The table to select from. If None, uses the pinned table. Defaults to None.
 
         Returns
         -------
-        `AsyncIterator` [:class:`sl3aio.table.TableRecord` [`T`]]
+        `AsyncIterator` [:py:class:`.TableRecord` [`T`]]
             An async iterator of selected records.
         
         See Also
@@ -312,12 +312,12 @@ class EasySelector[T]:
 
         Parameters
         ----------
-        table : :class:`sl3aio.table.Table` [`T`] | `None`, optional
+        table : :py:class:`.Table` [`T`] | `None`, optional
             The table to select from. If None, uses the pinned table. Defaults to None.
 
         Returns
         -------
-        :class:`sl3aio.table.TableRecord` [`T`] | `None`
+        :py:class:`.TableRecord` [`T`] | `None`
             The selected record, or None if no record matches.
         
         See Also
@@ -331,12 +331,12 @@ class EasySelector[T]:
 
         Parameters
         ----------
-        table : :class:`sl3aio.table.Table` [`T`] | `None`, optional
+        table : :py:class:`.Table` [`T`] | `None`, optional
             The table to delete from. If None, uses the pinned table. Defaults to None.
 
         Returns
         -------
-        `AsyncIterator` [:class:`sl3aio.table.TableRecord` [`T`]]
+        `AsyncIterator` [:py:class:`.TableRecord` [`T`]]
             An async iterator of deleted records.
         
         See Also
@@ -353,7 +353,7 @@ class EasySelector[T]:
 
         Parameters
         ----------
-        table : :class:`sl3aio.table.Table` [`T`] | `None`, optional
+        table : :py:class:`.Table` [`T`] | `None`, optional
             The table to delete from. If None, uses the pinned table. Defaults to None.
         
         See Also
@@ -369,12 +369,12 @@ class EasySelector[T]:
 
         Parameters
         ----------
-        table : :class:`sl3aio.table.Table` [`T`] | `None`, optional
+        table : :py:class:`.Table` [`T`] | `None`, optional
             The table to delete from. If None, uses the pinned table. Defaults to None.
 
         Returns
         -------
-        :class:`sl3aio.table.TableRecord` [`T`] | `None`
+        :py:class:`.TableRecord` [`T`] | `None`
             The deleted record, or None if no record matches.
         
         See Also
@@ -389,14 +389,14 @@ class EasySelector[T]:
 
         Parameters
         ----------
-        table : :class:`sl3aio.table.Table` [`T`]
+        table : :py:class:`.Table` [`T`]
             The table to update.
         **to_update : `T`
             Keyword arguments specifying the fields to update and their new values.
 
         Returns
         -------
-        `AsyncIterator` [:class:`sl3aio.table.TableRecord` [`T`]]
+        `AsyncIterator` [:py:class:`.TableRecord` [`T`]]
             An async iterator of updated records.
         
         See Also
@@ -413,7 +413,7 @@ class EasySelector[T]:
 
         Parameters
         ----------
-        table : :class:`sl3aio.table.Table` [`T`]
+        table : :py:class:`.Table` [`T`]
             The table to update.
         **to_update : `T`
             Keyword arguments specifying the fields to update and their new values.
@@ -431,14 +431,14 @@ class EasySelector[T]:
 
         Parameters
         ----------
-        table : :class:`sl3aio.table.Table` [`T`]
+        table : :py:class:`.Table` [`T`]
             The table to update.
         **to_update : `T`
             Keyword arguments specifying the fields to update and their new values.
 
         Returns
         -------
-        :class:`sl3aio.table.TableRecord` [`T`] | `None`
+        :py:class:`.TableRecord` [`T`] | `None`
             The updated record, or None if no record matches.
         
         See Also
@@ -453,7 +453,7 @@ class EasySelector[T]:
 
         Parameters
         ----------
-        selector : `Callable` [[`bool`, `Any`, :class:`sl3aio.table.TableRecord` [`T`]], `tuple` [`bool`, `Any`]]
+        selector : `Callable` [[`bool`, `Any`, :py:class:`.TableRecord` [`T`]], `tuple` [`bool`, `Any`]]
             The selector to append.
 
         Returns
@@ -871,8 +871,8 @@ class EasyColumn[T]:
 
     See Also
     --------
-    :class:`sl3aio.table.TableColumnValueGenerator`
-    :class:`sl3aio.table.TableColumn`
+    :py:class:`.TableColumnValueGenerator`
+    :py:class:`.TableColumn`
     """
     default: T | TableColumnValueGenerator[T] | None = None
     """
@@ -904,7 +904,7 @@ class EasyColumn[T]:
 
         Returns
         -------
-        :class:`sl3aio.table.TableColumn` [`T`]
+        :py:class:`.TableColumn` [`T`]
             A TableColumn instance representing the column in the database.
         """
         return TableColumn(
@@ -950,9 +950,9 @@ class EasyTable[T](metaclass=_EasyTableMeta[T]):
 
     See Also
     --------
-    :class:`sl3aio.table.Table`
-    :class:`sl3aio.table.TableRecord`
-    :class:`sl3aio.table.TableSelectionPredicate`
+    :py:class:`.Table`
+    :py:class:`.TableRecord`
+    :py:class:`.TableSelectionPredicate`
     """
     table: Table[T]
     """The underlying database table."""
@@ -963,7 +963,7 @@ class EasyTable[T](metaclass=_EasyTableMeta[T]):
 
         Returns
         -------
-        `tuple` [:class:`sl3aio.table.TableColumn` [`T`], `...`]
+        `tuple` [:py:class:`.TableColumn` [`T`], `...`]
             A tuple of TableColumn objects representing the table's columns.
         """
         return type(cls).columns(cls)
@@ -984,7 +984,7 @@ class EasyTable[T](metaclass=_EasyTableMeta[T]):
 
         Parameters
         ----------
-        record : :class:`sl3aio.table.TableRecord` [`T`]
+        record : :py:class:`.TableRecord` [`T`]
             The record to check for.
 
         Returns
@@ -1007,7 +1007,7 @@ class EasyTable[T](metaclass=_EasyTableMeta[T]):
 
         Returns
         -------
-        :class:`sl3aio.table.TableRecord` [`T`]
+        :py:class:`.TableRecord` [`T`]
             The inserted record.
 
         See Also
@@ -1029,7 +1029,7 @@ class EasyTable[T](metaclass=_EasyTableMeta[T]):
 
         Returns
         -------
-        `AsyncIterator` [:class:`sl3aio.table.TableRecord` [`T`]]
+        `AsyncIterator` [:py:class:`.TableRecord` [`T`]]
             An async iterator of the inserted records.
         
         See Also
@@ -1045,12 +1045,12 @@ class EasyTable[T](metaclass=_EasyTableMeta[T]):
 
         Parameters
         ----------
-        predicate : :class:`sl3aio.table.TableSelectionPredicate` [`T`] | `None`, optional
+        predicate : :py:class:`.TableSelectionPredicate` [`T`] | `None`, optional
             The selection predicate. Defaults to None.
 
         Returns
         -------
-        `AsyncIterator` [:class:`sl3aio.table.TableRecord` [`T`]]
+        `AsyncIterator` [:py:class:`.TableRecord` [`T`]]
             An async iterator of the selected records.
         
         See Also
@@ -1066,12 +1066,12 @@ class EasyTable[T](metaclass=_EasyTableMeta[T]):
 
         Parameters
         ----------
-        predicate : :class:`sl3aio.table.TableSelectionPredicate` [`T`] | `None`, optional
+        predicate : :py:class:`.TableSelectionPredicate` [`T`] | `None`, optional
             The selection predicate. Defaults to None.
 
         Returns
         -------
-        :class:`sl3aio.table.TableRecord` [`T`] | `None`
+        :py:class:`.TableRecord` [`T`] | `None`
             The selected record, or None if no record matches the predicate.
         
         See Also
@@ -1088,7 +1088,7 @@ class EasyTable[T](metaclass=_EasyTableMeta[T]):
         
         Parameters
         ----------
-        predicate : :class:`sl3aio.table.TableSelectionPredicate` [`T`] | `None`, optional
+        predicate : :py:class:`.TableSelectionPredicate` [`T`] | `None`, optional
             A predicate to filter the records. Defaults to None.
 
         Returns
@@ -1104,12 +1104,12 @@ class EasyTable[T](metaclass=_EasyTableMeta[T]):
 
         Parameters
         ----------
-        predicate : :class:`sl3aio.table.TableSelectionPredicate` [`T`] | `None`, optional
+        predicate : :py:class:`.TableSelectionPredicate` [`T`] | `None`, optional
             The selection predicate. Defaults to None.
 
         Returns
         -------
-        `AsyncIterator` [:class:`sl3aio.table.TableRecord` [`T`]]
+        `AsyncIterator` [:py:class:`.TableRecord` [`T`]]
             An async iterator of the removed records.
 
         See Also
@@ -1126,7 +1126,7 @@ class EasyTable[T](metaclass=_EasyTableMeta[T]):
 
         Parameters
         ----------
-        predicate : :class:`sl3aio.table.TableSelectionPredicate` [`T`] | `None`, optional
+        predicate : :py:class:`.TableSelectionPredicate` [`T`] | `None`, optional
             The selection predicate. Defaults to None.
         
         See Also
@@ -1142,12 +1142,12 @@ class EasyTable[T](metaclass=_EasyTableMeta[T]):
 
         Parameters
         ----------
-        predicate : :class:`sl3aio.table.TableSelectionPredicate` [`T`] | `None`, optional
+        predicate : :py:class:`.TableSelectionPredicate` [`T`] | `None`, optional
             The selection predicate. Defaults to None.
 
         Returns
         -------
-        :class:`sl3aio.table.TableRecord` [`T`] | `None`
+        :py:class:`.TableRecord` [`T`] | `None`
             The deleted record, or None if no record matches the predicate.
         
         See Also
@@ -1162,14 +1162,14 @@ class EasyTable[T](metaclass=_EasyTableMeta[T]):
 
         Parameters
         ----------
-        predicate : :class:`sl3aio.table.TableSelectionPredicate` [`T`] | `None`, optional
+        predicate : :py:class:`.TableSelectionPredicate` [`T`] | `None`, optional
             The selection predicate. Defaults to None.
         **to_update : `T`
             The values to update, specified as keyword arguments.
 
         Returns
         -------
-        `AsyncIterator` [:class:`sl3aio.table.TableRecord` [`T`]]
+        `AsyncIterator` [:py:class:`.TableRecord` [`T`]]
             An async iterator of the updated records.
         
         See Also
@@ -1186,7 +1186,7 @@ class EasyTable[T](metaclass=_EasyTableMeta[T]):
 
         Parameters
         ----------
-        predicate : :class:`sl3aio.table.TableSelectionPredicate` [`T`] | `None`, optional
+        predicate : :py:class:`.TableSelectionPredicate` [`T`] | `None`, optional
             The selection predicate. Defaults to None.
         **to_update : `T`
             The values to update, specified as keyword arguments.
@@ -1204,14 +1204,14 @@ class EasyTable[T](metaclass=_EasyTableMeta[T]):
 
         Parameters
         ----------
-        predicate : :class:`sl3aio.table.TableSelectionPredicate` [`T`] | `None`, optional
+        predicate : :py:class:`.TableSelectionPredicate` [`T`] | `None`, optional
             The selection predicate. Defaults to None.
         **to_update : `T`
             The values to update, specified as keyword arguments.
 
         Returns
         -------
-        :class:`sl3aio.table.TableRecord` [`T`], `None`
+        :py:class:`.TableRecord` [`T`], `None`
             The updated record, or None if no record matches the predicate.
         
         See Also

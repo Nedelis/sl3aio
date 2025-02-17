@@ -158,8 +158,8 @@ Usage Examples
 
 See Also
 --------
-:mod:`sl3aio.easytable`: Convinient and easy interface to work with tables.
-:mod:`sl3aio.executor`: Core module of this library.
+:py:mod:`.easytable`: Convinient and easy interface to work with tables.
+:py:mod:`.executor`: Core module of this library.
 """
 from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass, field
@@ -522,7 +522,7 @@ class TableColumn[T]:
         """Generate the SQL representation of the column.
         
         .. Note::
-            - If column's typename is not present in :class:`sl3aio.parser.Parser` registry,
+            - If column's typename is not present in :py:class:`.Parser` registry,
               it would be represented as ``TEXT``.
             - Columns with specified generator would have their ``DEFAULT`` value setted
               to ``"$Generated:generator_name"``.
@@ -669,6 +669,9 @@ class Table[T](ABC):
     async def insert_many(self, ignore_existing: bool = False, *values: dict[str, T]) -> AsyncIterator[TableRecord[T]]:
         """Insert multiple records into the table.
 
+        .. Important::
+            You must iterate over the result for operation to be performed.
+
         Parameters
         ----------
         ignore_existing : `bool`, optional
@@ -758,6 +761,9 @@ class Table[T](ABC):
 
         .. Note::
             If predicate isn't specified, yields the whole table and then clears it.
+
+        .. Important::
+            You must iterate over the result for operation to be performed.
         
         Parameters
         ----------
@@ -820,6 +826,9 @@ class Table[T](ABC):
         
         .. Note::
             If predicate isn't specified, updates and yields every record.
+
+        .. Important::
+            You must iterate over the result for operation to be performed.
 
         Parameters
         ----------
@@ -894,7 +903,7 @@ class Table[T](ABC):
 
         See Also
         --------
-        :meth:`sl3aio.executor.ConsistentExecutor.__aenter__`
+        :py:meth:`.ConsistentExecutor.__aenter__`
         """
         await self._executor.__aenter__()
         return self
@@ -911,7 +920,7 @@ class Table[T](ABC):
 
         See Also
         --------
-        :meth:`sl3aio.executor.ConsistentExecutor.__aexit__`
+        :py:meth:`.ConsistentExecutor.__aexit__`
         """
         await self._executor.__aexit__(*args)
     
@@ -1026,7 +1035,7 @@ class SqlTable[T](Table[T], ABC):
         ----------
         name : `str`
             The name of the existing table in the database.
-        executor : :class:`sl3aio.executor.ConnectionManager`
+        executor : :py:class:`.ConnectionManager`
             The connection manager for the database.
 
         Returns
@@ -1119,7 +1128,7 @@ class SolidTable[T](SqlTable[T]):
             The SQL query to execute.
         record : :class:`TableRecord` [`T`]
             The record to use for the WHERE clause.
-        parameters : :obj:`sl3aio.executor.Parameters`, optional
+        parameters : :py:data:`.Parameters`, optional
             Additional parameters for the query.
 
         Returns

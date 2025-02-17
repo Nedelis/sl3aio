@@ -14,7 +14,7 @@ and several other operations on tables.
 
 .. Important::
     Before accessing the table, you must first run the table's executor. You can do it with async context
-    manager or with ``start_executor`` and ``stop_executor`` methods:
+    manager or with :py:meth:`.Table.start_executor` and :py:meth:`.Table.stop_executor` methods:
 
     .. code-block:: python
 
@@ -28,8 +28,8 @@ and several other operations on tables.
         table.stop_executor()
     
 .. Tip::
-    Instead of manually starting and stopping the table'sexecutor, you can wrap the table in an ``EasyTable``
-    class that automatically manages the executor when performing common operations.
+    Instead of manually starting and stopping the table'sexecutor, you can wrap the table in an
+    :py:class:`.EasyTable` class that automatically manages the executor when performing common operations.
 
     .. code-block:: python
 
@@ -44,7 +44,7 @@ and several other operations on tables.
     
 .. Tip::
     If you've created table's markup using `EasyTable and EasyColumn <./general.html#via-easycolumn-and-
-    easytable>`_ classes you'd better instantiate the ``EasyTable`` via the markup class constructor:
+    easytable>`_ classes you'd better instantiate the :py:class:`.EasyTable` via the markup class constructor:
 
     .. code-block:: python
         :emphasize-lines: 8
@@ -60,12 +60,13 @@ and several other operations on tables.
 
 Inserting records
 -----------------
-To insert a new record in the table, you can use one of the ``insert`` or ``insert_many`` methods.
+To insert a new record in the table, you can use one of the :py:meth:`.Table.insert` or
+:py:meth:`.Table.insert_many` methods.
 
 .. Hint::
     Almost every operation on the table, that modifies the records list in it, returns/yields the affected
-    records. In sl3aio, records are represented by the ``TableRecord`` class. This is a subtype of a tuple
-    that provides access to values not only by index, but also by column name through the ``getattr`` and
+    records. In sl3aio, records are represented by the :py:class:`.TableRecord` class. This is a subtype of a
+    tuple that provides access to values not only by index, but also by column name through the ``getattr`` and
     ``getitem`` methods.
 
     So if you have a record ``TableRecord(id=1, name="Alice", email="Alice@example.com", age=20)``, you can
@@ -77,7 +78,8 @@ To insert a new record in the table, you can use one of the ``insert`` or ``inse
         print(record['name'])  # Output: Alice
         print(record[-1])  # Output: 20
     
-    You also can convert it to dictionary using ``asdict`` method and to tuple using ``astuple`` method:
+    You also can convert it to dictionary using :py:meth:`.TableRecord.asdict` method and to tuple using
+    :py:meth:`.TableRecord.astuple` method:
     
     .. code-block:: python
 
@@ -86,7 +88,7 @@ To insert a new record in the table, you can use one of the ``insert`` or ``inse
 
 Single at once
 ~~~~~~~~~~~~~~
-The ``insert`` method is used to insert a single record in the table. Returns inserted record.
+The :py:meth:`.Table.insert` method is used to insert a single record in the table. Returns inserted record.
 
 Parameters:
 
@@ -102,8 +104,8 @@ Example:
 
 Multiple at once
 ~~~~~~~~~~~~~~~~
-The ``insert_many`` method is used to insert multiple records in the table at once. Returns the asynchronous
-iterator, yielding the inserted records.
+The :py:meth:`.Table.insert_many` method is used to insert multiple records in the table at once. Returns the
+asynchronous iterator, yielding the inserted records.
 
 .. Important::
     You must iterate other the resulted iterator, otherwise the insertion won't be performed.
@@ -133,16 +135,16 @@ record should be selected/modified or not. There is currentrly two ways to creat
 
 Via EasySelector
 ~~~~~~~~~~~~~~~~
-The ``EasySelector`` class allows you to create complex selection criteria in pythonic way via operator
-overloading. At a start point, ``EasySelector`` has the record as the underlying object. Then you can
+The :py:class:`.EasySelector` class allows you to create complex selection criteria in pythonic way via operator
+overloading. At a start point, :py:class:`.EasySelector` has the record as the underlying object. Then you can
 use operators to control the selection.
 
 .. Note::
-    The ``EasySelector`` class just like the ``EasyTable`` automatically manages the executor when performing
-    common operations on the pinned table.
+    The :py:class:`.EasySelector` class just like the :py:class:`.EasyTable` automatically manages the executor
+    when performing common operations on the pinned table.
 
-    You can pin the table to a selector using the ``selector.pin_table(table)`` method or pass the table
-    to the constructor of the ``EasySelector`` class.
+    You can pin the table to a selector using the :py:meth:`.EasySelector.pin_table` method or pass the table
+    to the constructor of the :py:class:`.EasySelector` class.
 
 First create an instance:
 
@@ -155,10 +157,10 @@ First create an instance:
 .. Hint::
     :class: dropdown
 
-    - The ``EasySelector`` class constructor takes the following parameters:
+    - The :py:class:`.EasySelector` class constructor takes the following parameters:
         1. ``table``: The pinned table, optional, defaults to None.
         2. ``selector``: The initial selector, optional, defaults to ``lambda record: record, True``.
-    - You can specify the data types of the table inside the ``EasySelector`` generic.
+    - You can specify the data types of the table inside the :py:class:`.EasySelector` generic.
 
 Now you can create a selector.
 
@@ -216,7 +218,7 @@ on it, as it was a table, or you can convert it into a predicate:
 
     predicate = selector.as_predicate()
 
-To check a record against the selector, you can use the ``selector.apply(record)`` method which returns a
+To check a record against the selector, you can use the :py:meth:`.EasySelector.apply` method which returns a
 tuple, containing a boolean indicating if the selector matched, and the result of the selector application:
 
 .. code-block:: python
@@ -237,9 +239,11 @@ Selecting records
 -----------------
 To select records from the table, you can use one of these methods:
 
-- ``select(predicate)``: Yields all of the records that matched the given predicate. **You need to iterate
-  over the result for the operation to be performed.**
-- ``select_one(predicate)``: Returns the first yielded by ``select`` record or None if no records was selected.
+- :py:meth:`.Table.select` ``(predicate=None)``: Yields all of the records that matched the given predicate.
+  If predicate isn't specified, yields the entire table. **You need to iterate over the result for the
+  operation to be performed.**
+- :py:meth:`.Table.select_one` ``(predicate=None)``: Returns the first yielded by ``select`` record or None if
+  no records was selected. If predicate isn't specified, returns the first record in the table.
 
 From Table or EasyTable
 ~~~~~~~~~~~~~~~~~~~~~~~
@@ -261,17 +265,13 @@ From Table or EasyTable
 
     selected_record = await table.select_one(predicate)
 
-.. Note::
-    You don't have to always pass the predicate as an argument, it's optional. If you don't pass it, the
-    ``select`` method will yield the entire table, and the ``select_one`` method will return the first record.
-
 From EasySelector
 ~~~~~~~~~~~~~~~~~
-Since the ``EasySelector`` is the same thing as a predicate, you don't need to pass predicate inside its
-``select`` and ``select_one`` methods.
+Since the :py:class:`.EasySelector` is the same thing as a predicate, you don't need to pass predicate inside
+its :py:meth:`.EasySelector.select` and :py:meth:`.EasySelector.select_one` methods.
 
 .. Note::
-    If you don't have a table pinned to ``EasySelector``, you need to pass your table instead of the
+    If you don't have a table pinned to :py:class:`.EasySelector`, you need to pass your table instead of the
     ``predicate`` argument.
 
 .. code-block:: python
@@ -285,13 +285,16 @@ Updating records
 ----------------
 To update records in the table, you can use one of these methods:
 
-- ``updated(predicate, **to_update)``: Updates values specified in the ``**to_update`` parameter for each record
-  that matched the given predicate and yields the updated records. **You need to iterate over the result for
-  operation to be performed.**
-- ``update(predicate, **to_update)``: Updates values specified in the ``**to_update`` parameter for each record
-  that matched the given predicate without yielding the updated records.
-- ``update_one(predicate, **to_update)``: Updates values specified in the ``**to_update`` parameter for the
-  first record that matched the given predicate and returns the updated record or None if no record was updated.
+- :py:meth:`.Table.updated` ``(predicate=None, **to_update)``: Updates values specified in the ``**to_update``
+  parameter for each record that matched the given predicate and yields the updated records. If predicate isn't
+  specified, yields and updates every record in the table. **You need to iterate over the result for operation
+  to be performed.**
+- :py:meth:`.Table.update` ``(predicate=None, **to_update)``: Updates values specified in the ``**to_update``
+  parameter for each record that matched the given predicate without yielding the updated records. If predicate
+  isn't specified, updates every record in the table.
+- :py:meth:`.Table.update_one` ``(predicate=None, **to_update)``: Updates values specified in the ``**to_update``
+  parameter for the first record that matched the given predicate and returns the updated record or None if no
+  record was updated. If predicate isn't specified, updates the first record in the table and returns it.
 
 From Table or EasyTable
 ~~~~~~~~~~~~~~~~~~~~~~~
@@ -317,18 +320,14 @@ From Table or EasyTable
 
     updated_record = await table.update_one(predicate, **to_update)
 
-.. Note::
-    You don't have to always pass the predicate as an argument, it's optional. If you don't pass it, the
-    ``updated`` and ``update`` methods will update every record in the table, and the ``update_one`` method
-    will update the first record.
-
 From EasySelector
 ~~~~~~~~~~~~~~~~~
-Since the ``EasySelector`` is the same thing as a predicate, you don't need to pass predicate inside its
-``updated``, ``update`` and ``update_one`` methods.
+Since the :py:class:`.EasySelector` is the same thing as a predicate, you don't need to pass predicate inside
+its :py:meth:`.EasySelector.updated`, :py:meth:`.EasySelector.update` and :py:meth:`.EasySelector.update_one`
+methods.
 
 .. Note::
-    If you don't have a table pinned to ``EasySelector``, you need to pass your table instead of the
+    If you don't have a table pinned to :py:class:`.EasySelector`, you need to pass your table instead of the
     ``predicate`` argument.
 
 .. code-block:: python
@@ -344,10 +343,13 @@ Deleting records
 ----------------
 To delete records in the table, you can use one of these methods:
 
-- ``deleted(predicate)``: Deletes and yields removed records that matched the given predicate. **You need to
-  iterate over the result for operation to be performed.**
-- ``delete(predicate)``: Deletes records that matched the given predicate without yielding removed.
-- ``delete_one(predicate)``: Deletes and returns the first record that matched the given predicate.
+- :py:meth:`.Table.deleted` ``(predicate=None)``: Deletes and yields removed records that matched the given
+  predicate. If predicate isn't specified, yields and clears the table. **You need to iterate over the result
+  for operation to be performed.**
+- :py:meth:`.Table.delete` ``(predicate=None)``: Deletes records that matched the given predicate without
+  yielding removed ones. If predicate isn't specified, clears the table.
+- :py:meth:`.Table.delete_one` ``(predicate=None)``: Deletes and returns the first record that matched the
+  given predicate. If predicate isn't specified, deletes and returns the first record in the table.
 
 From Table or EasyTable
 ~~~~~~~~~~~~~~~~~~~~~~~
@@ -373,18 +375,14 @@ From Table or EasyTable
     
     removed_record = await table.delete_one(predicate)
 
-.. Note::
-    You don't have to always pass the predicate as an argument, it's optional. If you don't pass it, the
-    ``deleted`` and ``delete`` methods will clear the table, and the ``delete_one`` method will delete the
-    first record.
-
 From EasySelector
 ~~~~~~~~~~~~~~~~~
-Since the ``EasySelector`` is the same thing as a predicate, you don't need to pass predicate inside its
-``deleted``, ``delete`` and ``delete_one`` methods.
+Since the :py:class:`.EasySelector` is the same thing as a predicate, you don't need to pass predicate inside
+its :py:meth:`.EasySelector.deleted`, :py:meth:`.EasySelector.delete` and :py:meth:`.EasySelector.delete_one`
+methods.
 
 .. Note::
-    If you don't have a table pinned to ``EasySelector``, you need to pass your table instead of the
+    If you don't have a table pinned to :py:class:`.EasySelector`, you need to pass your table instead of the
     ``predicate`` argument.
 
 .. code-block:: python
@@ -407,15 +405,16 @@ This operations must be implemented by every type of table.
 
 Length
 """"""
-Returns the amount of records in the table.
+The :py:meth:`.Table.length` method returns the amount of records in the table.
 
 .. code-block:: python
 
     length = await table.length()
 
 Count
-""""""
-Returns the amount of records in the table that matches the given predicate.
+"""""
+The :py:meth:`.Table.count` ``(predicate=None)`` method returns the amount of records in the table that matches the
+given predicate.
 
 .. Note::
     If you won't specify the predicate, the result will be the same as the
@@ -427,7 +426,7 @@ Returns the amount of records in the table that matches the given predicate.
 
 Contains
 """"""""
-Returns True if the table contains the given record.
+The :py:meth:`.Table.contains` ``(record)`` method returns True if the table contains the given record.
 
 .. code-block:: python
 
@@ -435,11 +434,12 @@ Returns True if the table contains the given record.
 
 SqlTable operations
 ~~~~~~~~~~~~~~~~~~~
-This operations are supported only by the subclasses of the ``SqlTable`` (e.g. ``SolidTable``).
+This operations are supported only by the subclasses of the :py:class:`.SqlTable` (e.g.
+:py:class:`.SolidTable`).
 
 Exists
 """"""
-Checks if the table exists in the database.
+The :py:meth:`.SqlTable.exists` method checks if the table exists in the database.
 
 .. code-block:: python
 
@@ -447,7 +447,7 @@ Checks if the table exists in the database.
 
 Create
 """"""
-Creates the table in the database.
+The :py:meth:`.SqlTable.create` ``(if_not_exists=True)`` method creates the table in the database.
 
 .. code-block:: python
 
@@ -459,7 +459,7 @@ Creates the table in the database.
 
 Drop
 """"
-Drops the table from the database.
+The :py:meth:`.SqlTable.drop` ``(if_exists=True)`` method drops the table from the database.
 
 .. code-block:: python
 

@@ -11,7 +11,7 @@ Using existing database
 ----
 
 If you already have SQLite3 database with existing tables and you want to use it asynchronously with sl3aio,
-you can load all of the tables from it using ``SolidTable`` class and its ``from_database`` method.
+you can load all of the tables from it using the following example.
 
 First import necessary classes.
 
@@ -22,8 +22,8 @@ First import necessary classes.
 .. Hint::
     :class: dropdown
 
-    - ``Connector`` is used to make connections to sqlite databases.
-    - ``SolidTable`` represents a table inside SQLite database.
+    - :py:class:`.Connector` is used to make connections to sqlite databases.
+    - :py:class:`.SolidTable` represents a table inside SQLite database.
 
 Now connect to the desired database and load the table(-s) from it:
 
@@ -35,9 +35,9 @@ Now connect to the desired database and load the table(-s) from it:
 .. Hint::
     :class: dropdown
 
-    - The ``connection_manager`` method is used to create an instance of a database query executor that
-      supports an asynchronous context manager that automatically opens and closes a connection.
-    - The ``SolidTable.from_database`` method is used to create a ``SolidTable`` instance from an existing
-      table in the database.
+    - The :py:meth:`.Connector.connection_manager` method is used to create an instance of a database query
+      executor that supports an asynchronous context manager that automatically opens and closes a connection.
+    - The :py:meth:`.SolidTable.from_database` method is used to create a :py:class:`.SolidTable` instance from
+      an existing table in the database.
 
-Table is ready to work. See `how to access it <./accesing_the_table.html>`_.
+Table is ready to work. See `how to access it <./accessing_the_table.html>`_.
