@@ -13,10 +13,10 @@ You can choose the installation method that suits you best from the ones availab
 
 pip install whl
 ---------------
-You can install this package from .whl file. Go to the `releases page <https://github.com/Nedelis/sl3aio/releases>`_,
-choose the suitable release and download ``.whl`` file from the ``Assets`` tab.
+You can install this package from .whl file. Go to the :github-page:`releases page </releases>`, choose the
+suitable release and download ``.whl`` file from the ``Assets`` tab.
 
-Place the downloaded file in your project directory and then run:
+Place the downloaded file in your project's directory and then run:
 
 .. code-blocK:: shell
 

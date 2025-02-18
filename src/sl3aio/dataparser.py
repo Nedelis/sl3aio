@@ -28,9 +28,9 @@ Other Components
 
 Usage Examples
 --------------
-- If you need to work with booleans, or date and time, or lists, tuples, sets and dicts,
-  or json objects, you don't need to create custom parsers for them. Call
-  :func:`BuiltinParsers.init()` method and you will be able to work with these types.
+- If you need to work with booleans, date, time, datetime, lists, tuples, sets, dicts, json objects, you don't
+  need to create custom parsers for them. Call :func:`BuiltinParsers.init()` method and you will be able
+  to work with these types.
 
 .. code-block:: python
 
@@ -87,6 +87,8 @@ Usage Examples
     custom_parser = Parser.from_parsable(CustomObject, ['CUSTOM'])
     custom_parser.register()
 """
+__all__ = ['DefaultDataType', 'allowed_types', 'allowed_typenames', 'Parser', 'Parsable', 'BuiltinParsers']
+
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from json import loads, dumps
@@ -94,8 +96,6 @@ from datetime import datetime, date, time
 from collections.abc import Callable, Iterable
 from typing import TypeAlias, ClassVar, Self, final
 from sqlite3 import adapters, converters, PrepareProtocol
-
-__all__ = ['DefaultDataType', 'allowed_types', 'allowed_typenames', 'Parser', 'Parsable', 'BuiltinParsers']
 
 DefaultDataType: TypeAlias = bytes | str | int | float | None
 """Types that are supported by sqlite3 natively."""
@@ -136,8 +136,8 @@ class Parsable(ABC):
     """
     @classmethod
     @abstractmethod
-    def from_data(cls, data: bytes) -> 'Parsable':
-        """Create an instance from a binary data.
+    def from_data[T](cls: type[T], data: DefaultDataType) -> T:
+        """Create an instance from a data recieved from the table.
         
         Parameters
         ----------
@@ -183,7 +183,7 @@ class Parser[T]:
     """Set of types corresponding to the parser."""
     _typenames: set[str]
     """Set of names corresponding to the parser. This field is protected, use :attr:`Parser.typenames` instead."""
-    loads: Callable[[bytes], T] = field(repr=False)
+    loads: Callable[[DefaultDataType], T] = field(repr=False)
     """Method to parse a data from bytes."""
     dumps: Callable[[T], Parsable | DefaultDataType] = field(repr=False)
     """Method to convert an object to the object of the allowed type, listed in :func:`allowed_types()`."""
@@ -297,10 +297,13 @@ class BuiltinParsers:
     """Container for default and some extra parsers.
 
     .. Attention::
-        - Do not registrate ``BLOB``, ``INT``, ``REAL`` and ``TEXT`` parsers using
-          their's ``register()`` method.
-        - Before using ``BOOL``, ``SET``, ``LIST``, ``TUPLE``, ``DICT``, ``JSON``, ``TIME``,
-          ``DATE`` and ``DATETIME`` parsers, you must call :meth:`BuiltinParsers.init()` method.
+        Before using :attr:`BuiltionParsers.BOOL`, :attr:`BuiltionParsers.SET`, :attr:`BuiltionParsers.TUPLE`,
+        :attr:`BuiltionParsers.JSON`, :attr:`BuiltionParsers.TIME`, :attr:`BuiltionParsers.DATE` and
+        :attr:`BuiltionParsers.DATETIME` parsers, you must call :meth:`BuiltinParsers.init` method.
+    
+    .. Warning::
+        Do not registrate :attr:`BuiltionParsers.BLOB`, :attr:`BuiltionParsers.INT`, :attr:`BuiltionParsers.REAL`
+        and :attr:`BuiltionParsers.TEXT` parsers using their's :meth:`Parser.register` method.
     
     See Also
     --------
@@ -311,22 +314,18 @@ class BuiltinParsers:
     """Parser for binary data."""
     INT: ClassVar[Parser[int]] = Parser({int}, {'INTEGER', 'INT'}, int, int)
     """Parser for integers."""
-    REAL: ClassVar[Parser[float]] = Parser({float}, {'REAL', 'FLOAT'}, float, float)
+    REAL: ClassVar[Parser[float]] = Parser({float}, {'REAL', 'FLOAT', 'DOUBLE'}, float, float)
     """Parser for floating-point and real numbers."""
-    TEXT: ClassVar[Parser[str]] = Parser({str}, {'TEXT', 'CHAR', 'VARCHAR'}, str, str)
+    TEXT: ClassVar[Parser[str]] = Parser({str}, {'TEXT', 'CHAR', 'VARCHAR', 'STR', 'STRING'}, str, str)
     """Parser for strings."""
     BOOL: ClassVar[Parser[bool]]
     """Parser for boolean values."""
-    SET: ClassVar[Parser[set]]
-    """Parser for python sets."""
-    LIST: ClassVar[Parser[list]]
-    """Parser for python lists."""
-    TUPLE: ClassVar[Parser[tuple]]
-    """Parser for python tuples."""
-    DICT: ClassVar[Parser[dict]]
-    """Parser for python dictionaries."""
     JSON: ClassVar[Parser[dict | list]]
     """Parser for both python dictionaries and lists (JSON objects)."""
+    TUPLE: ClassVar[Parser[tuple]]
+    """Parser for python tuples."""
+    SET: ClassVar[Parser[set]]
+    """Parser for python sets."""
     TIME: ClassVar[Parser[time]]
     """Parser for time in one of the `iso 8601 <https://en.wikipedia.org/wiki/ISO_8601>`_ formats."""
     DATE: ClassVar[Parser[date]]
@@ -338,7 +337,7 @@ class BuiltinParsers:
     def init() -> None:
         """Creates and registrates all builtin parsers except `BLOB`, `INT`, `REAL` and `TEXT` (those were created automatically)."""
         BuiltinParsers.BOOL = Parser({bool}, {'BOOL', 'BOOLEAN'}, lambda data: t == b'true' if (t := data.lower()) in (b'true', b'false') else bool(data), str).register()
-        BuiltinParsers.LIST = BuiltinParsers.DICT = BuiltinParsers.JSON = Parser({dict, list}, {'JSON', 'LIST', 'DICT'}, loads, lambda obj: dumps(obj, ensure_ascii=False)).register()
+        BuiltinParsers.JSON = Parser({dict, list}, {'JSON', 'LIST', 'DICT'}, loads, lambda obj: dumps(obj, ensure_ascii=False)).register()
         BuiltinParsers.SET = Parser({set}, {'SET'}, lambda data: set(loads(data)), lambda obj: dumps(tuple(obj), ensure_ascii=False)).register()
         BuiltinParsers.TUPLE = Parser({tuple}, {'TUPLE'}, lambda data: tuple(loads(data)), BuiltinParsers.JSON.dumps).register()
         BuiltinParsers.TIME = Parser({time}, {'TIME'}, time.fromisoformat, time.isoformat).register()

@@ -1,4 +1,4 @@
-:description: Changelog list of the sl3aio.
+:description: Changelog of the sl3aio.
 
 Changelog
 =========

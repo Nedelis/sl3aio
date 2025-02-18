@@ -11,7 +11,7 @@ sl3aio
 
 .. container:: buttons
 
-   `Start <./installation.html>`_
+   `Get started <./installation.html>`_
    `Source <https://github.com/Nedelis/sl3aio>`_
 
 .. toctree::
@@ -20,7 +20,7 @@ sl3aio
 
    installation
    examples/general/index
-   examples/advanced
+   examples/advanced/index
 
 .. toctree::
    :caption: Modules

@@ -9,6 +9,8 @@ Creating new database
 
 ----
 
+Introduction
+------------
 Basically, a database is a collection of tables, so to create a new one, you need to create multiple tables
 that are contained in the same database. That's why the following examples show ways to create only
 one table (you can just duplicate them by analogy).

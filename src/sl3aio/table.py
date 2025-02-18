@@ -161,6 +161,11 @@ See Also
 :py:mod:`.easytable`: Convinient and easy interface to work with tables.
 :py:mod:`.executor`: Core module of this library.
 """
+__all__ = [
+    'TableRecord', 'TableSelectionPredicate', 'TableColumnValueGenerator',
+    'TableColumn', 'Table', 'MemoryTable', 'SqlTable', 'SolidTable'
+]
+
 from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass, field
 from re import DOTALL, IGNORECASE, MULTILINE, match as re_match, compile, Pattern
@@ -170,11 +175,6 @@ from asyncio import get_event_loop
 from inspect import isawaitable
 from .executor import *
 from .dataparser import Parser, BuiltinParsers
-
-__all__ = [
-    'TableRecord', 'TableSelectionPredicate', 'TableColumnValueGenerator',
-    'TableColumn', 'Table', 'MemoryTable', 'SqlTable', 'SolidTable'
-]
 
 _ColumnsSqlFromTable: Pattern[str] = compile(r'^CREATE TABLE\s+\w+\s*\((.*)\)$', IGNORECASE)
 _RemoveQuotation: Pattern[str] = compile(r'^["\'`](.*)["\'`]$', DOTALL | MULTILINE)

@@ -118,6 +118,8 @@ Usage Examples
 
     asyncio.run(main())
 """
+__all__ = ['Parameters', 'Executor', 'ConsistentExecutor', 'Connector', 'ConnectionManager', 'CursorManager']
+
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import InitVar, dataclass, field, replace
 from asyncio import AbstractEventLoop, Future, Queue, Task, get_running_loop, create_task
@@ -127,8 +129,6 @@ from sqlite3 import Cursor, connect, Connection
 from collections.abc import AsyncGenerator, Callable, Iterable, Mapping, Sequence
 from typing import Any, ClassVar, Literal, TypeAlias, Self
 from .dataparser import DefaultDataType
-
-__all__ = ['Parameters', 'Executor', 'ConsistentExecutor', 'Connector', 'ConnectionManager', 'CursorManager']
 
 Parameters: TypeAlias = Sequence[DefaultDataType] | Mapping[str, DefaultDataType]
 """Allowed SQL request parameters type."""

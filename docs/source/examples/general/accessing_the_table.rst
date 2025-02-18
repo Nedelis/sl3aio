@@ -9,6 +9,8 @@ Accessing the table
 
 ----
 
+Introduction
+------------
 When you have obtained the table, you can access it. sl3aio library provides CRUD (Create, Read, Update, Delete)
 and several other operations on tables.
 

@@ -185,6 +185,8 @@ See Also
 --------
 :py:mod:`.table`: Native module for working with tables.
 """
+__all__ = ['default_selector', 'EasySelector', 'EasyColumn', 'EasyTable']
+
 import operator
 from math import trunc, floor, ceil
 from functools import partial
@@ -193,8 +195,6 @@ from dataclasses import dataclass, replace
 from typing import Any, Self, Concatenate, get_args, get_origin
 from .dataparser import Parser
 from .table import Table, TableColumn, TableRecord, TableSelectionPredicate, TableColumnValueGenerator
-
-__all__ = ['default_selector', 'EasySelector', 'EasyColumn', 'EasyTable']
 
 
 def default_selector(previous, _: TableRecord) -> tuple[True, Any]:
