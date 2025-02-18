@@ -15,6 +15,8 @@ sl3aio's :py:mod:`.dataparser` module uses sqlite3's adapters and converters sys
 dumpers for the data types. In this library object that contains load and dump methods for other objects is
 :py:class:`.Parser`.
 
+----
+
 Listing allowed types and typenames
 -----------------------------------
 In some cases, you may need a list of allowed types or typenames. (For example, you want to check whether your
@@ -48,6 +50,8 @@ You can access the list of allowed typenames with :py:func:`.allowed_typenames`:
 
     For default data types, this list includes **only their affinities**. So there are no
     such typenames as ``DOUBLE``, ``TINYINT``, ``VARCHAR(...)`` and etc. in the result set.
+
+----
 
 Custom parsers
 --------------
@@ -84,7 +88,7 @@ methods for this type:
         return f'{point.x} {point.y}'
 
 .. Note::
-    The type of data, recieved from the table by ``loads`` method must will be the same as the return type of
+    The type of data, recieved from the table by ``loads`` method will be the same as the return type of
     the ``dumps`` method.
     
     If the ``dumps`` method returns an other type, that has its own parser, then the ``loads`` method
@@ -129,6 +133,8 @@ Now you can use Point2D type in your database.
         # (the given typename will be converted to uppercase automatically)
         point_parser = Parser.get_by_typename('Point2D')
 
+----
+
 Parsable objects
 ----------------
 You can also create a parser from the :py:class:`.Parsable` subclasses instances that must implement the
@@ -171,6 +177,8 @@ Now registrate the parser for the Point2D class using the :py:meth:`.Parser.from
            class is used.
 
 Now you can use Point2D type in your database.
+
+----
 
 Built-in parsers
 ----------------

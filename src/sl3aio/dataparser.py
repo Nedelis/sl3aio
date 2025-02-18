@@ -20,7 +20,7 @@ Key Components
 
 Other Components
 ----------------
-- :obj:`DefaultDataType`: Type alias for basic types natively supported by SQLite.
+- :data:`DefaultDataType`: Type alias for basic types natively supported by SQLite.
 - :func:`allowed_types`: Function for querying types, supported by the database.
 - :func:`allowed_typenames`: Function for querying typenames (sqlite column types),
   supported by the database.
@@ -94,7 +94,7 @@ from dataclasses import dataclass, field
 from json import loads, dumps
 from datetime import datetime, date, time
 from collections.abc import Callable, Iterable
-from typing import TypeAlias, ClassVar, Self, final
+from typing import Any, TypeAlias, ClassVar, Self, final
 from sqlite3 import adapters, converters, PrepareProtocol
 
 DefaultDataType: TypeAlias = bytes | str | int | float | None
@@ -148,16 +148,24 @@ class Parsable(ABC):
         -------
         :class:`Parsable`
             Instance of the parsable class.
+
+        See Also
+        --------
+        :attr:`Parser.loads`
         """
 
     @abstractmethod
-    def to_data(self) -> 'Parsable | DefaultDataType':
+    def to_data(self) -> DefaultDataType | Any:
         """Converts self to the any object of the allowed type, listed in :func:`allowed_types()`.
         
         Returns
         -------
-        :class:`Parsable` | :obj:`DefaultDataType`
+        :data:`DefaultDataType` | Any
             Object that can be written into sqlite database.
+
+        See Also
+        --------
+        :attr:`Parser.dumps`
         """
 
 
@@ -184,8 +192,15 @@ class Parser[T]:
     _typenames: set[str]
     """Set of names corresponding to the parser. This field is protected, use :attr:`Parser.typenames` instead."""
     loads: Callable[[DefaultDataType], T] = field(repr=False)
-    """Method to parse a data from bytes."""
-    dumps: Callable[[T], Parsable | DefaultDataType] = field(repr=False)
+    """Method to parse a data recieved from the table.
+    
+    .. Note::
+        The type of the data will be the same as the return type of the ``dumps`` method or, if the return type is
+        an other object that has a parser, corresponding to it, the return type will be the same as the return
+        type of the ``dumps`` method of the other object (and so on until the return type of ``dumps`` won't be
+        one of the :data:`DefaultDataType`)
+    """
+    dumps: Callable[[T], DefaultDataType | Any] = field(repr=False)
     """Method to convert an object to the object of the allowed type, listed in :func:`allowed_types()`."""
 
     def __post_init__(self) -> None:

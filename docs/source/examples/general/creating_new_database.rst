@@ -15,6 +15,8 @@ Basically, a database is a collection of tables, so to create a new one, you nee
 that are contained in the same database. That's why the following examples show ways to create only
 one table (you can just duplicate them by analogy).
 
+----
+
 Marking up a table
 ------------------
 Before creating a database, you need to mark up the tables in it AKA define columns for each of them.
@@ -58,11 +60,13 @@ as the class attributes:
     - The table's columns are defined as attributes of the class according to the one of the schemes:
         1. ``<column name>: EasySelector[<column type>]``: default value is None, no constraints.
         2. ``<column name>: EasySelector[<column type>] = <default_value>``: default value is <default_value>,
+           that can be a static one or a `value generator <../advanced/generated_columns.html>`_,
            no constraints.
         3. ``<column name>: EasySelector[<column type>] = EasyColumn(...)``: default value and constraints are
            specified in the EasyColumn parameters.
     - The :py:class:`.EasyColumn` constructor parameters (can be either positional or keyword) is:
-        1. ``default``: default value or default value generator of the column, optional; defaults to None.
+        1. ``default``: default value or `value generator <../advanced/generated_columns.html>`_ of the column,
+           optional; defaults to None.
         2. ``primary``: indicates whether the column is a primary key, optional; defaults to False.
         3. ``unique``: indicates whether the column is a unique column, optional; defaults to False.
         4. ``nullable``: indicates whether the column can have a NULL value, optional; defaults to False.
@@ -125,7 +129,7 @@ Option 1: Via the constructor
     2. ``typename``: the SQL type of the column.
     3. ``default``: default value of the column, optional; defaults to None.
     4. ``generator``: TableColumnValueGenerator that creates the column's default value for each
-       inserted record. See `advanced examples <../advanced.html>`_ for examples.
+       inserted record. See about `generated columns <../advanced/generated_columns.html>`_.
     5. ``primary``: indicates whether the column is a primary key, optional; defaults to False.
     6. ``unique``: indicates whether the column is a unique column, optional; defaults to False.
     7. ``nullable``: indicates whether the column can have a NULL value, optional; defaults to False.
@@ -148,7 +152,8 @@ Option 2: Via the SQL definition
     The method :py:meth:`.TableColumn.from_sql` parameters are:
 
     1. ``sql``: SQL definition of the column.
-    2. ``default``: default value or default value generator of the column, optional; defaults to None.
+    2. ``default``: default value or `value generator <../advanced/generated_columns.html>`_ of the column,
+       optional; defaults to None.
 
 The table markup is ready.
 

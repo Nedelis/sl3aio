@@ -60,6 +60,8 @@ and several other operations on tables.
         table = Table('my_table', UsersTableMarkup.columns())
         users_table = UsersTableMarkup(table)
 
+----
+
 Inserting records
 -----------------
 To insert a new record in the table, you can use one of the :py:meth:`.Table.insert` or
@@ -128,6 +130,8 @@ Example:
         {'id': 3, 'name': 'Charlie', 'email': 'Charlie@example.dev', 'age': 37}
     ):
         pass
+
+----
 
 Filtering records
 -----------------
@@ -237,6 +241,8 @@ return a boolean indicating if the record should be selected/modified.
     async def my_predicate(record: TableRecord) -> bool:
         # Your implementation here
 
+----
+
 Selecting records
 -----------------
 To select records from the table, you can use one of these methods:
@@ -282,6 +288,8 @@ its :py:meth:`.EasySelector.select` and :py:meth:`.EasySelector.select_one` meth
         # Your implementation here
 
     selected_record = await selector.select_one()
+
+----
 
 Updating records
 ----------------
@@ -341,6 +349,8 @@ methods.
 
     updated_record = await selector.update_one(**to_update)
 
+----
+
 Deleting records
 ----------------
 To delete records in the table, you can use one of these methods:
@@ -395,6 +405,8 @@ methods.
     await selector.delete()
 
     removed_record = await selector.delete_one()
+
+----
 
 Other operations
 ----------------
