@@ -15,6 +15,16 @@ sl3aio's :py:mod:`.dataparser` module uses sqlite3's adapters and converters sys
 dumpers for the data types. In this library object that contains load and dump methods for other objects is
 :py:class:`.Parser`.
 
+.. Warning::
+    If you create custom parsers or using initialized built-in ones, you should always set the connection's
+    parameter ``detect_types`` to ``sqlite3.PARSE_DECLTYPES``.
+
+    .. code-block:: python
+
+        from sqlite3 import PARSE_DECLTYPES
+        
+        connector = Connector(..., detect_types=PARSE_DECLTYPES, ...)
+
 ----
 
 Listing allowed types and typenames

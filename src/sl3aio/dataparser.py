@@ -7,8 +7,8 @@ creating custom parsers, handling various data types, and managing the conversio
 process for database operations.
 
 .. Warning::
-    If you create custom parsers, you should always set the connection's parameter
-    ``detect_types`` to ``sqlite3.PARSE_DECLTYPES``.
+    If you create custom parsers or using initialized built-in ones, you should always set the connection's
+    parameter ``detect_types`` to ``sqlite3.PARSE_DECLTYPES``.
 
 
 Key Components

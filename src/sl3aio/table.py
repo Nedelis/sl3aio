@@ -185,6 +185,11 @@ class TableRecord[T](tuple[T, ...]):
 
     This class extends the built-in tuple class to provide additional functionality
     specific to table records.
+
+    .. Note::
+        Hash of the record is same as the hash of the tuple containing only values of unique/primary
+        (nonrepeating) columns. The equality operator works similarly. So, as in the sqlite, two records
+        of the table, which doesn't have unique/primary columns, are always different.
     """
     __slots__ = ()
     table: ClassVar['Table']
@@ -1012,11 +1017,6 @@ class SqlTable[T](Table[T], ABC):
     :class:`Table`
     """
     _executor: ConnectionManager
-    _default_selector: str = field(init=False)
-
-    def __post_init__(self) -> None:
-        super(SqlTable, self).__post_init__()
-        self._default_selector = 'WHERE ' + ' AND '.join(f'{k} = ?' for k in self._record_type.fields)
 
     @property
     def database(self) -> str:
@@ -1119,6 +1119,12 @@ class SolidTable[T](SqlTable[T]):
     :class:`SqlTable`
     :class:`Table`
     """
+    _default_selector: str = field(init=False)
+
+    def __post_init__(self) -> None:
+        super(SolidTable, self).__post_init__()
+        self._default_selector = 'WHERE ' + ' AND '.join(f'{k} = ?' for k in self._record_type.fields)
+
     async def _execute_where(self, query: str, record: TableRecord[T], parameters: Parameters = ()) -> CursorManager:
         """Execute a SQL query with a WHERE clause based on the given record.
 
