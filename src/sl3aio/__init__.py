@@ -2,7 +2,7 @@
 sl3aio
 ======
 
-A simple and efficient Pytohn library for asynchronous use of SQLite3 with a set of useful tools and interfaces.
+A simple and efficient Python library for asynchronous use of SQLite3 with a set of useful tools and interfaces.
 
 Modules
 -------
