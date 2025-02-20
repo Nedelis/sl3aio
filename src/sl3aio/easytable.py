@@ -252,7 +252,7 @@ class EasySelector[T]:
             async def __predicate(record: TableRecord[T]) -> bool:
                 nonlocal self
                 return (await record.executor(self.apply, record))[0]
-            self._predicate = __predicate
+            object.__setattr__(self, '_predicate', __predicate)
         return self._predicate
     
     def pin_table(self, table: Table[T]) -> Self:
