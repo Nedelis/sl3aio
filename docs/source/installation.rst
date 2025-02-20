@@ -11,6 +11,16 @@ Installation
 
 You can choose the installation method that suits you best from the ones available below.
 
+pip install
+-----------
+Run the following command in your terminal to install sl3aio using pip:
+
+.. code-block:: shell
+
+    pip install sl3aio
+
+----
+
 pip install whl
 ---------------
 You can install this package from .whl file. Go to the :github-page:`releases page </releases>`, choose the
@@ -18,7 +28,7 @@ suitable release and download ``.whl`` file from the ``Assets`` tab.
 
 Place the downloaded file in your project's directory and then run:
 
-.. code-blocK:: shell
+.. code-block:: shell
 
     pip install <file_name>.whl
 

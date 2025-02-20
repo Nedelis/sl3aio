@@ -4,12 +4,12 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sl3aio"
-version = "1.3.0-rc1"
-description = "SQLite3 but with safe async and bunch of useful tools!"
+dynamic = ["version"]
+description = "A simple and efficient Pytohn library for asynchronous use of SQLite3 with a set of useful tools and interfaces."
 readme = "README.md"
 requires-python = ">=3.12"
 license = {file = "LICENSE"}
-keywords = ["database", "development", "sqlite", "sl3"]
+keywords = ["database", "development", "sqlite", "sl3", "async"]
 authors = [
   {name = "Nedelis", email = "dimoshunya@gmail.com" }
 ]
@@ -17,14 +17,20 @@ maintainers = [
   {name = "Nedelis", email = "dimoshunya@gmail.com" }
 ]
 classifiers = [
-  "Development Status :: 3 - Alpha",
+  "Development Status :: 4 - Beta",
   "Intended Audience :: Developers",
   "Topic :: Database",
   "License :: OSI Approved :: BSD License",
-  "Programming Language :: Python :: 3.12"
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13"
 ]
+
+[tool.setuptools.dynamic]
+version = {attr = "sl3aio.__version__"}
 
 [project.urls]
 "Homepage" = "https://github.com/Nedelis/sl3aio"
+"Documentation" = "https://sl3aio.readthedocs.io"
+"Source" = "https://github.com/Nedelis/sl3aio/master/src/sl3aio"
+"Repository" = "https://github.com/Nedelis/sl3aio"
 "Bug Reports" = "https://github.com/Nedelis/sl3aio/issues"
-"Source" = "https://github.com/Nedelis/sl3aio/master/src"

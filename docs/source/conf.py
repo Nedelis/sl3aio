@@ -3,10 +3,12 @@ from sys import path
 
 path.insert(0, (Path(__file__).parents[2].resolve() / 'src').as_posix())
 
+from sl3aio import __version__
+
 project = 'sl3aio'
 copyright = 'Copyright © 2024-2025, Nedelis'
 author = 'Nedelis'
-release = '1.3.0-rc1'
+release = __version__
 
 github_url = 'https://github.com/Nedelis/sl3aio'
 
